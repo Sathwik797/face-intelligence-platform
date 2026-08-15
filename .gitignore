@@ -15,6 +15,7 @@ ENV/
 # Datasets and Raw Biometric Face Images (Privacy Protection)
 data/raw/
 data/evaluation/
+data/embeddings/
 dataset/
 *.jpg
 *.jpeg
@@ -27,11 +28,12 @@ dataset/
 !data/metadata/
 !data/metadata/**
 
-# Large Model Weights and Binaries (>100MB / ONNX / Pickle)
+# Large Model Weights and Binaries (>100MB / ONNX / Pickle / NPZ)
 ml/models/*.onnx
 *.onnx
 trained_model/*.pkl
 *.pkl
+*.npz
 
 # Runtime output logs & CSVs
 attendance.csv

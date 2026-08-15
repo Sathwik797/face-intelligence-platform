@@ -4,7 +4,13 @@ from ml.detector import BaseDetector, DlibHOGDetector, ModernFaceDetector, FaceD
 from ml.aligner import FaceAligner
 from ml.embedder import BaseEmbedder, DlibEmbedder, ArcFaceEmbedder
 from ml.matcher import BaseMatcher, EuclideanMatcher, CosineMatcher
-from ml.pipeline import FaceRecognitionPipeline, RecognitionResult
+from ml.gallery import IdentityGallery
+from ml.pipeline import (
+    FaceRecognitionPipeline,
+    RecognitionResult,
+    ModernRecognitionPipeline,
+    ModernRecognitionResult
+)
 
 __all__ = [
     "BaseDetector",
@@ -18,6 +24,9 @@ __all__ = [
     "BaseMatcher",
     "EuclideanMatcher",
     "CosineMatcher",
+    "IdentityGallery",
     "FaceRecognitionPipeline",
     "RecognitionResult",
+    "ModernRecognitionPipeline",
+    "ModernRecognitionResult",
 ]

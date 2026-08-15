@@ -1,23 +1,27 @@
 import os
+import time
 import pickle
 from dataclasses import dataclass, asdict
 from typing import List, Tuple, Optional, Dict, Any
 import numpy as np
 
-from ml.detector import BaseDetector, DlibHOGDetector
-from ml.embedder import BaseEmbedder, DlibEmbedder
-from ml.matcher import BaseMatcher, EuclideanMatcher
+from ml.detector import BaseDetector, DlibHOGDetector, ModernFaceDetector, FaceDetection
+from ml.aligner import FaceAligner
+from ml.embedder import BaseEmbedder, DlibEmbedder, ArcFaceEmbedder
+from ml.matcher import BaseMatcher, EuclideanMatcher, CosineMatcher
+from ml.gallery import IdentityGallery
+
+# --- Baseline E1 Data Structure ---
 
 @dataclass
 class RecognitionResult:
-    """Structured result of a face recognition query."""
+    """Structured result of a baseline face recognition query (Experiment E1)."""
     identity: str
     distance: float
     location: Tuple[int, int, int, int]
     recognized: bool
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert result dataclass to dictionary."""
         return {
             "identity": self.identity,
             "distance": round(self.distance, 4) if self.distance != float("inf") else None,
@@ -26,16 +30,48 @@ class RecognitionResult:
         }
 
 
+# --- Modern E2 Data Structure ---
+
+@dataclass
+class ModernRecognitionResult:
+    """
+    Structured result of a modern ArcFace recognition query (Experiment E2).
+    Explicitly distinguishes between best_candidate and final open-set recognition decision.
+    """
+    identity: Optional[str]              # Enrolled name if recognized, None if rejected as Unknown
+    best_candidate: str                  # Closest gallery candidate
+    similarity: float                    # Continuous cosine similarity score [-1.0, 1.0]
+    threshold: float                     # Decision threshold
+    recognized: bool                     # True if similarity >= threshold
+    bbox: Optional[Tuple[int, int, int, int]] = None  # CSS bounding box (top, right, bottom, left)
+    landmarks: Optional[np.ndarray] = None            # 5-point landmarks
+    model: str = "arcface_resnet50_512d"
+    embedding_dim: int = 512
+    latency_ms: float = 0.0
+    reason: str = "accepted"             # "accepted", "below_threshold", "no_face_detected", "multiple_faces_rejected"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "identity": self.identity,
+            "best_candidate": self.best_candidate,
+            "recognized": self.recognized,
+            "similarity": round(float(self.similarity), 4),
+            "threshold": round(float(self.threshold), 4),
+            "bbox": list(self.bbox) if self.bbox is not None else None,
+            "landmarks": self.landmarks.tolist() if self.landmarks is not None else None,
+            "model": self.model,
+            "embedding_dimension": self.embedding_dim,
+            "latency_ms": round(float(self.latency_ms), 2),
+            "reason": self.reason
+        }
+
+
+# --- Phase 1 Baseline Pipeline (E1) ---
+
 class FaceRecognitionPipeline:
     """
-    Central orchestration pipeline for Face Recognition.
-
-    Pipeline stages:
-        1. RGB Image Input
-        2. Face Detection (Bounding Boxes)
-        3. Feature Embedding Extraction
-        4. Gallery Comparison & Decision Logic
-        5. Structured RecognitionResult Output
+    Phase 1 Baseline Face Recognition Pipeline (Experiment E1).
+    Orchestrates: dlib HOG Detection -> dlib 128D Embedding -> Euclidean Matcher.
     """
 
     def __init__(
@@ -54,9 +90,6 @@ class FaceRecognitionPipeline:
         config: Dict[str, Any],
         embeddings_path: Optional[str] = None
     ) -> "FaceRecognitionPipeline":
-        """
-        Factory method to initialize pipeline from config dictionary.
-        """
         threshold = config.get("model", {}).get("recognition_threshold", 0.6)
         emb_path = embeddings_path or config.get("paths", {}).get("embeddings_path", "trained_model/face_encodings.pkl")
 
@@ -72,27 +105,15 @@ class FaceRecognitionPipeline:
         return cls(detector=detector, embedder=embedder, matcher=matcher)
 
     def process_image(self, rgb_image: np.ndarray) -> List[RecognitionResult]:
-        """
-        Executes end-to-end face recognition on an RGB image.
-
-        Args:
-            rgb_image (np.ndarray): Image array in RGB format (H, W, 3).
-
-        Returns:
-            List[RecognitionResult]: List of recognition results for all detected faces.
-        """
         if rgb_image is None or rgb_image.size == 0:
             return []
 
-        # 1. Detect face locations
         face_locations = self.detector.detect(rgb_image)
         if not face_locations:
             return []
 
-        # 2. Extract embeddings
         embeddings = self.embedder.embed(rgb_image, face_locations)
 
-        # 3. Match each detected face against reference gallery
         results: List[RecognitionResult] = []
         for loc, emb in zip(face_locations, embeddings):
             identity, distance, is_recognized = self.matcher.match(emb)
@@ -106,3 +127,172 @@ class FaceRecognitionPipeline:
             )
 
         return results
+
+
+# --- Phase 5 Modern Pipeline (E2) ---
+
+class ModernRecognitionPipeline:
+    """
+    Modern Face Recognition & Identity Decision Pipeline (Experiment E2).
+
+    Orchestrates:
+        1. RGB Image Input
+        2. YuNet Face Detection
+        3. Deterministic Primary Face Selection (Highest Confidence Policy)
+        4. 5-Point Landmark Affine Alignment (112x112 Canonical Crop)
+        5. ArcFace Deep Embedding Extraction (512D ResNet-50)
+        6. L2 Normalization
+        7. Multi-template Cosine Similarity Search against IdentityGallery
+        8. Open-Set Threshold Decision (Recognized Identity OR Unknown)
+    """
+
+    def __init__(
+        self,
+        detector: ModernFaceDetector,
+        aligner: FaceAligner,
+        embedder: ArcFaceEmbedder,
+        gallery: IdentityGallery,
+        threshold: float = 0.45,
+        multi_face_policy: str = "highest_confidence"
+    ):
+        self.detector = detector
+        self.aligner = aligner
+        self.embedder = embedder
+        self.gallery = gallery
+        self.threshold = float(threshold)
+        self.multi_face_policy = multi_face_policy
+
+    @classmethod
+    def from_config(
+        cls,
+        config: Dict[str, Any],
+        gallery_path: Optional[str] = None
+    ) -> "ModernRecognitionPipeline":
+        """Factory method constructing ModernRecognitionPipeline from configuration."""
+        g_path = gallery_path or config.get("paths", {}).get(
+            "gallery_path", "data/embeddings/arcface_gallery.npz"
+        )
+        threshold = config.get("model", {}).get("cosine_threshold", 0.45)
+        multi_face_policy = config.get("model", {}).get("multi_face_policy", "highest_confidence")
+
+        detector = ModernFaceDetector(
+            model_path=config.get("model", {}).get("yunet_model_path"),
+            score_threshold=config.get("model", {}).get("score_threshold", 0.6),
+            nms_threshold=config.get("model", {}).get("nms_threshold", 0.3)
+        )
+        aligned_size = tuple(config.get("model", {}).get("aligned_face_size", [112, 112]))
+        aligner = FaceAligner(output_size=aligned_size)
+        embedder = ArcFaceEmbedder(
+            model_path=config.get("model", {}).get("arcface_model_path")
+        )
+
+        if os.path.exists(g_path):
+            gallery = IdentityGallery.load(g_path)
+        else:
+            gallery = IdentityGallery()
+
+        return cls(
+            detector=detector,
+            aligner=aligner,
+            embedder=embedder,
+            gallery=gallery,
+            threshold=threshold,
+            multi_face_policy=multi_face_policy
+        )
+
+    def recognize(self, rgb_image: np.ndarray) -> ModernRecognitionResult:
+        """
+        Executes end-to-end recognition on a single image.
+
+        Args:
+            rgb_image (np.ndarray): Image array (H, W, 3) in RGB format.
+
+        Returns:
+            ModernRecognitionResult: Structured recognition result.
+        """
+        t0 = time.perf_counter()
+
+        if rgb_image is None or rgb_image.size == 0 or not isinstance(rgb_image, np.ndarray):
+            t_end = time.perf_counter()
+            return ModernRecognitionResult(
+                identity=None,
+                best_candidate="Unknown",
+                similarity=-1.0,
+                threshold=self.threshold,
+                recognized=False,
+                latency_ms=(t_end - t0) * 1000.0,
+                reason="invalid_image"
+            )
+
+        # 1. Detect faces
+        faces: List[FaceDetection] = self.detector.detect_faces(rgb_image)
+        if not faces:
+            t_end = time.perf_counter()
+            return ModernRecognitionResult(
+                identity=None,
+                best_candidate="Unknown",
+                similarity=-1.0,
+                threshold=self.threshold,
+                recognized=False,
+                latency_ms=(t_end - t0) * 1000.0,
+                reason="no_face_detected"
+            )
+
+        # 2. Multi-face policy
+        if len(faces) > 1 and self.multi_face_policy == "reject":
+            t_end = time.perf_counter()
+            return ModernRecognitionResult(
+                identity=None,
+                best_candidate="Unknown",
+                similarity=-1.0,
+                threshold=self.threshold,
+                recognized=False,
+                latency_ms=(t_end - t0) * 1000.0,
+                reason="multiple_faces_rejected"
+            )
+
+        primary_face = max(faces, key=lambda d: d.confidence)
+
+        # 3. 5-point alignment
+        if primary_face.landmarks is None:
+            t_end = time.perf_counter()
+            return ModernRecognitionResult(
+                identity=None,
+                best_candidate="Unknown",
+                similarity=-1.0,
+                threshold=self.threshold,
+                recognized=False,
+                bbox=primary_face.bbox,
+                latency_ms=(t_end - t0) * 1000.0,
+                reason="missing_landmarks"
+            )
+
+        aligned_crop = self.aligner.align(rgb_image, primary_face.landmarks)
+
+        # 4. Extract ArcFace 512D normalized embedding
+        emb = self.embedder.embed(aligned_crop)
+
+        # 5. Query IdentityGallery
+        rec_id, best_cand, best_sim, is_rec = self.gallery.search(
+            query_embedding=emb,
+            threshold=self.threshold
+        )
+
+        t_end = time.perf_counter()
+        latency_ms = (t_end - t0) * 1000.0
+
+        reason = "accepted" if is_rec else "below_threshold"
+
+        return ModernRecognitionResult(
+            identity=rec_id,
+            best_candidate=best_cand,
+            similarity=best_sim,
+            threshold=self.threshold,
+            recognized=is_rec,
+            bbox=primary_face.bbox,
+            landmarks=primary_face.landmarks,
+            model=self.embedder.model_name,
+            embedding_dim=self.embedder.embedding_dim,
+            latency_ms=latency_ms,
+            reason=reason
+        )

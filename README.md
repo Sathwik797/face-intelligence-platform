@@ -5,6 +5,8 @@ This repository contains a modular Face Recognition Attendance System designed a
 
 > **Note on Machine Learning Methodology:**
 > All feature extraction models (Phase 1 dlib ResNet-34 128D and Phase 4 ArcFace ResNet-50 512D) utilize **pretrained neural network weights** for inference. Embedding extraction is feature transformation; it is **not** custom model training.
+> **Note on Threshold Calibration:**
+> The cosine similarity threshold (default `0.45`) used in this phase is **provisional** for pipeline verification. Final optimal recognition thresholds will be calibrated using validation data in Phase 7.
 
 ---
 
@@ -21,36 +23,42 @@ face_recognition_attendence_system/
 │   ├── aligner.py            # FaceAligner (5-point affine transformation)
 │   ├── embedder.py           # BaseEmbedder, DlibEmbedder (128D) & ArcFaceEmbedder (512D)
 │   ├── matcher.py            # BaseMatcher, EuclideanMatcher & CosineMatcher
-│   ├── pipeline.py           # FaceRecognitionPipeline & RecognitionResult
+│   ├── gallery.py            # IdentityGallery (multi-template enrollment & search)
+│   ├── pipeline.py           # Baseline (E1) & Modern (E2) Recognition Pipelines
 │   └── models/               # Downloaded ONNX model weights (YuNet, ArcFace)
 ├── config/
 │   ├── __init__.py           # Config loader
 │   └── config.yaml           # System paths, model parameters, and thresholds
-├── data/                     # Dataset storage (Gitignored raw/eval images)
+├── data/                     # Dataset storage (Gitignored raw/eval images & galleries)
 │   ├── raw/lfw/              # Downloaded raw LFW dataset
 │   ├── evaluation/           # Partitioned evaluation images
-│   │   ├── enrollment/       # Reference gallery templates
+│   │   ├── enrollment/       # Reference gallery templates (59 identities, 118 images)
 │   │   ├── validation/       # Validation set for threshold tuning
 │   │   └── test/             # Final hold-out test set
+│   ├── embeddings/           # Serialized IdentityGallery artifacts (arcface_gallery.npz)
 │   └── metadata/             # Versioned split and verification metadata
 │       ├── identities.csv    # List of selected evaluation identities
 │       ├── splits.csv        # Image-level split mapping and SHA256 hashes
 │       ├── verification_pairs.csv # Official LFW 10-fold pairs
 │       └── dataset_summary.json   # Full dataset audit summary
 ├── scripts/
-│   ├── prepare_dataset.py               # LFW acquisition & split partitioning
-│   ├── validate_dataset.py              # Leakage, hash, and integrity audit
-│   ├── benchmark_detection_alignment.py # Detection & alignment benchmark
-│   ├── benchmark_embeddings.py          # ArcFace embedding sanity checks & benchmark
-│   ├── generate_baseline_embeddings.py  # Offline baseline feature extraction
-│   └── verify_baseline.py               # Manual & API verification script
-├── tests/                    # PyTest test suite (44 tests)
+│   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
+│   ├── validate_dataset.py                # Leakage, hash, and integrity audit
+│   ├── benchmark_detection_alignment.py   # Detection & alignment benchmark
+│   ├── benchmark_embeddings.py            # ArcFace embedding sanity checks & benchmark
+│   ├── build_gallery.py                   # Enrolls reference identities into gallery
+│   ├── evaluate_identification_pipeline.py# Open-set identification pipeline verification
+│   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
+│   └── verify_baseline.py                 # Manual & API verification script
+├── tests/                    # PyTest test suite (54 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
 │   ├── test_detector.py      # Face detector unit tests (Dlib & Modern)
 │   ├── test_embedder.py      # Embedding extractor unit tests (Dlib & ArcFace)
+│   ├── test_gallery.py       # IdentityGallery multi-template & search tests
 │   ├── test_matcher.py       # Similarity matcher unit tests (Euclidean & Cosine)
-│   ├── test_pipeline.py      # Recognition pipeline tests
+│   ├── test_pipeline.py      # Baseline recognition pipeline tests
+│   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API integration tests
 ├── templates/                # Frontend HTML views
 ├── static/                   # Frontend CSS
@@ -61,67 +69,100 @@ face_recognition_attendence_system/
 
 ---
 
-## 2. Pretrained ArcFace Embedding Pipeline (Phase 4)
+## 2. Modern Face Recognition Pipeline (Phase 5 — Experiment E2)
 
-### Modern Embedding Backbone (`ArcFaceEmbedder`)
-* **Architecture**: Deep ResNet-50 backbone with Additive Angular Margin Loss (ArcFace).
-* **Source & Checkpoint**: InsightFace `buffalo_l` (`w600k_r50.onnx`, trained on WebFace600k / Glint360k).
-* **Input Preprocessing**:
-  1. Aligned RGB face crop of resolution $112 \times 112 \times 3$.
-  2. Numerical pixel normalization: $\mathbf{x}_{\text{norm}} = (\mathbf{x} - 127.5) / 127.5 \in [-1.0, 1.0]$ (`float32`).
-  3. Channel reordering: $(H, W, C) \to (C, H, W)$.
-  4. Batch tensor: $(N, 3, 112, 112)$.
-* **Embedding Dimensionality**: **512-dimensional vector**.
-* **$L_2$ Normalization**: Strict hyperspherical projection:
-  $$\hat{\mathbf{e}} = \frac{\mathbf{e}}{\max(\|\mathbf{e}\|_2, 10^{-10})}, \quad \|\hat{\mathbf{e}}\|_2 = 1.0000$$
-* **Matching Metric**: Cosine similarity via inner product:
-  $$S(\hat{\mathbf{q}}, \hat{\mathbf{k}}) = \hat{\mathbf{q}} \cdot \hat{\mathbf{k}} \in [-1.0, 1.0]$$
+### End-to-End Recognition Workflow
+```
+Input Image (RGB)
+      │
+      ▼
+YuNet Face Detection (OpenCV Deep CNN)
+      │
+      ▼
+Deterministic Primary Face Selection (Highest Confidence Policy)
+      │
+      ▼
+5-Point Facial Landmark Alignment (112x112 Canonical ArcFace Crop)
+      │
+      ▼
+ArcFace Embedding Extraction (512D ResNet-50 Backbone)
+      │
+      ▼
+L2 Hyperspherical Normalization (||e||_2 = 1.0)
+      │
+      ▼
+IdentityGallery Multi-Template Cosine Similarity Search
+      │
+      ▼
+Open-Set Decision Thresholding (Provisional τ = 0.45)
+      │
+      ├── If max(CosineSim) >= τ ──► Recognized Enrolled Identity
+      └── If max(CosineSim) < τ  ──► Rejected as "Unknown"
+```
+
+### Enrolled Identity Gallery (`IdentityGallery`)
+* **Source Split**: Constructed exclusively from the Phase 2 `enrollment/` split (59 identities, 118 reference images, 2 images per person).
+* **Multi-Template Matching**:
+  $$S_{\text{identity}} = \max_{j \in \text{templates}} (\hat{\mathbf{q}} \cdot \hat{\mathbf{k}}_j)$$
+  $$\text{Top-1 Candidate} = \arg\max_{\text{identity}} (S_{\text{identity}})$$
+* **Open-Set Decision**:
+  $$\text{Decision} = \begin{cases} \text{Top-1 Candidate}, & \text{if } S_{\text{Top-1}} \ge \tau \\ \text{Unknown (None)}, & \text{otherwise} \end{cases}$$
 
 ---
 
 ## 3. Experiment Configuration Profiles
 
-| Feature | Experiment E1 (Baseline) | Experiment E2 (Modern Embedding) |
+| Feature | Experiment E1 (Baseline) | Experiment E2 (Modern Recognition) |
 |---|---|---|
 | **Detector** | dlib HOG + Linear SVM | OpenCV YuNet Deep CNN |
 | **Preprocessing** | Bounding box crop | 5-Point Affine Landmark Alignment ($112 \times 112$) |
-| **Embedding Model** | dlib ResNet-34 (Pretrained) | ArcFace ResNet-50 (Pretrained, w600k) |
+| **Embedding Model** | Pretrained dlib ResNet-34 | **Pretrained ArcFace ResNet-50** |
 | **Embedding Dimension** | 128D | **512D** |
-| **Vector Normalization** | $L_2$ Euclidean Space | **Unit $L_2$ Hyperspherical Normalization** |
-| **Similarity Metric** | Euclidean Distance ($\|e_1 - e_2\|_2$) | **Cosine Similarity ($\mathbf{e}_1 \cdot \mathbf{e}_2$)** |
-| **Decision Rule** | $\min(d) \le \tau_{\text{dist}}$ | $\max(S) \ge \tau_{\text{cosine}}$ |
+| **Vector Space** | Euclidean Space | **Unit Hyperspherical Manifold ($\|\mathbf{e}\|_2 = 1.0$)** |
+| **Gallery Search** | Euclidean Distance ($\|e_1 - e_2\|_2$) | **Multi-Template Cosine Similarity ($\mathbf{e}_1 \cdot \mathbf{e}_2$)** |
+| **Decision Rule** | $\min(d) \le 0.6$ | $\max(S) \ge \tau_{\text{cosine}}$ |
+| **Open-Set Rejection** | Distance threshold | **Cosine similarity threshold** |
 
 ---
 
-## 4. Measured Embedding Benchmark Results
+## 4. Measured Recognition Pipeline Performance (CPU)
 
-Evaluated over 300 representative LFW validation images (`scripts/benchmark_embeddings.py`):
-* **Model Load Time**: **347.45 ms**
-* **Sanity Checks Passed**:
-  - [x] Output Dimension == 512
-  - [x] Finite Values (No NaN / Inf)
-  - [x] Unit $L_2$ Norm ($\|\mathbf{e}\|_2 = 1.000000$)
-  - [x] Deterministic on Identical Inputs
-  - [x] Discriminability on Distinct Faces (Cosine Sim: $0.0435$)
-  - [x] Single vs Batch Inference Consistency ($< 10^{-5}$ tolerance)
-* **Single-Crop Inference Latency (CPU)**: **113.85 ms** / face
-* **Batch Inference Latency (CPU, Batch Size 16)**: **117.87 ms** / face
+Evaluated over 50 Known validation queries and 50 Open-Set Unknown queries (`scripts/evaluate_identification_pipeline.py`):
+* **Known Queries**:
+  - Correct Top-1 Candidate: **96.00%** (48 / 50)
+  - Accepted at Provisional Threshold (`0.45`): **98.00%** (49 / 50)
+  - Average Known Similarity Score: **0.6971**
+* **Unknown Queries (Open-Set Rejection)**:
+  - Rejected as Unknown: **100.00%** (50 / 50)
+  - Average Unknown Similarity Score: **0.1557**
+  - **Score Margin Separation**: **+0.5414**
+* **Per-Query Latency Breakdown**:
+  - YuNet Detection: **4.18 ms**
+  - 5-Point Alignment: **0.25 ms**
+  - ArcFace Embedding (ResNet-50): **94.88 ms**
+  - Exact Gallery Search (118 templates): **0.21 ms**
+  - **Total End-to-End Latency**: **99.53 ms** ($\approx \mathbf{10.0\text{ FPS}}$ on CPU)
 
 ---
 
 ## 5. Setup & Execution Commands
 
-### 1. Run Embedding Benchmark & Sanity Checks
+### 1. Build Enrolled Identity Gallery (E2)
 ```bash
-python scripts/benchmark_embeddings.py
+python scripts/build_gallery.py
 ```
 
-### 2. Run Complete PyTest Suite (44 tests)
+### 2. Run Open-Set Identification Verification
+```bash
+python scripts/evaluate_identification_pipeline.py
+```
+
+### 3. Run Complete PyTest Suite (54 tests)
 ```bash
 pytest -v
 ```
 
-### 3. Start Flask Web Application
+### 4. Start Flask Web Application
 ```bash
 python app.py
 ```
