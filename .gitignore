@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Datasets and Raw Biometric Face Images (Privacy Protection)
+data/raw/
+data/evaluation/
+dataset/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.webp
+
+# Preserve metadata directory structure
+!data/
+!data/metadata/
+!data/metadata/**
+
+# Large Model Weights and Binaries (>100MB / ONNX / Pickle)
+ml/models/*.onnx
+*.onnx
+trained_model/*.pkl
+*.pkl
+
+# Runtime output logs & CSVs
+attendance.csv
+attendence.csv
+
+# IDE / OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

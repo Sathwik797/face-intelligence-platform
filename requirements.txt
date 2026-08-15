@@ -1,12 +1,9 @@
-flask==2.2.2
-numpy==1.23.3
-opencv-python==4.7.0.72
-face-recognition==1.3.0
-pandas==1.5.0
-
-#These are the available versions of software in my laptop
-#Flask                   3.1.0
-#opencv-python           4.11.0.86
-#pandas                  2.2.3
-#Name: face-recognition  Version: 1.3.0
-#Name: numpy  Version: 2.2.3
+flask>=3.0.0
+numpy>=1.26.0,<2.0.0
+opencv-python>=4.10.0,<4.11.0
+face-recognition>=1.3.0
+dlib>=19.24.1
+pandas>=2.0.0
+pyyaml>=6.0.0
+pytest>=8.0.0
+pillow>=10.0.0
