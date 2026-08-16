@@ -8,6 +8,7 @@ from ml.evaluation.metrics import (
     calculate_score_statistics
 )
 from ml.evaluation.evaluator import VerificationEvaluator
+from ml.evaluation.calibrator import ThresholdCalibrator
 
 __all__ = [
     "calculate_roc_curve",
@@ -17,5 +18,6 @@ __all__ = [
     "find_optimal_threshold",
     "calculate_fold_aware_metrics",
     "calculate_score_statistics",
-    "VerificationEvaluator"
+    "VerificationEvaluator",
+    "ThresholdCalibrator"
 ]

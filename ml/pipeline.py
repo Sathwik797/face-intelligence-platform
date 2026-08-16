@@ -152,7 +152,7 @@ class ModernRecognitionPipeline:
         aligner: FaceAligner,
         embedder: ArcFaceEmbedder,
         gallery: IdentityGallery,
-        threshold: float = 0.45,
+        threshold: float = 0.24,
         multi_face_policy: str = "highest_confidence"
     ):
         self.detector = detector
@@ -172,7 +172,7 @@ class ModernRecognitionPipeline:
         g_path = gallery_path or config.get("paths", {}).get(
             "gallery_path", "data/embeddings/arcface_gallery.npz"
         )
-        threshold = config.get("model", {}).get("cosine_threshold", 0.45)
+        threshold = config.get("recognition", {}).get("similarity_threshold", 0.24)
         multi_face_policy = config.get("model", {}).get("multi_face_policy", "highest_confidence")
 
         detector = ModernFaceDetector(

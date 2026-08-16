@@ -34,10 +34,10 @@ model:
   modern_embedder: "arcface_512d"
   arcface_model_path: "ml/models/arcface_w600k_r50.onnx"
   arcface_embedding_dim: 512
-  
-  # NOTE: The cosine threshold below is PROVISIONAL (default 0.45).
-  # Final recognition threshold will be calibrated from validation data in Phase 7.
-  cosine_threshold: 0.45
+
+recognition:
+  # Validation-derived production cosine similarity threshold from Phase 7
+  similarity_threshold: 0.24
 
 app:
   host: "127.0.0.1"

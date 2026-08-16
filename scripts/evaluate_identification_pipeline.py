@@ -31,13 +31,13 @@ def run_identification_pipeline_verification(
     meta_dir = config.get("paths", {}).get("metadata_dir", "data/metadata")
     splits_csv = os.path.join(meta_dir, "splits.csv")
     gallery_path = config.get("paths", {}).get("gallery_path", "data/embeddings/arcface_gallery.npz")
-    threshold = config.get("model", {}).get("cosine_threshold", 0.45)
+    threshold = config.get("recognition", {}).get("similarity_threshold", 0.24)
 
     print("="*65)
     print("PHASE 5: MODERN RECOGNITION PIPELINE VERIFICATION (EXPERIMENT E2)")
     print("="*65)
     print(f"Gallery Artifact: {gallery_path}")
-    print(f"Provisional Cosine Threshold: {threshold} (Will be calibrated in Phase 7)")
+    print(f"Production Cosine Threshold: {threshold}")
     print(f"Multi-face Policy: {config.get('model', {}).get('multi_face_policy', 'highest_confidence')}\n")
 
     # 1. Gallery Load Time

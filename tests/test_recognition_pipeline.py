@@ -28,7 +28,7 @@ def mock_pipeline():
         aligner=aligner,
         embedder=embedder,
         gallery=gallery,
-        threshold=0.45,
+        threshold=0.24,
         multi_face_policy="highest_confidence"
     )
 
@@ -38,7 +38,7 @@ def test_modern_result_to_dict():
         identity="Alice",
         best_candidate="Alice",
         similarity=0.88,
-        threshold=0.45,
+        threshold=0.24,
         recognized=True,
         bbox=(10, 100, 110, 20),
         landmarks=np.zeros((5, 2)),
@@ -71,6 +71,24 @@ def test_pipeline_on_invalid_input(mock_pipeline):
     assert res.reason == "invalid_image"
 
 
+def test_pipeline_from_config_reads_similarity_threshold():
+    """Verifies that ModernRecognitionPipeline.from_config reads recognition.similarity_threshold."""
+    test_config = {
+        "model": {
+            "score_threshold": 0.6,
+            "nms_threshold": 0.3,
+            "aligned_face_size": [112, 112],
+            "multi_face_policy": "highest_confidence"
+        },
+        "recognition": {
+            "similarity_threshold": 0.24
+        },
+        "paths": {}
+    }
+    pipeline = ModernRecognitionPipeline.from_config(test_config, gallery_path="non_existent_gallery.npz")
+    assert pipeline.threshold == 0.24
+
+
 def test_pipeline_from_config_and_real_image():
     config = load_config("config/config.yaml")
     gallery_path = "data/embeddings/arcface_gallery.npz"
@@ -80,6 +98,7 @@ def test_pipeline_from_config_and_real_image():
 
     pipeline = ModernRecognitionPipeline.from_config(config, gallery_path=gallery_path)
     assert pipeline.gallery.total_templates > 0
+    assert pipeline.threshold == 0.24
 
     # Query using an enrolled validation image if present
     test_img_path = "data/evaluation/validation/Alejandro_Toledo/Alejandro_Toledo_0002.jpg"
@@ -91,5 +110,5 @@ def test_pipeline_from_config_and_real_image():
         assert isinstance(res, ModernRecognitionResult)
         assert res.best_candidate == "Alejandro_Toledo"
         assert res.recognized is True
-        assert res.similarity > 0.45
+        assert res.similarity > 0.24
         assert res.identity == "Alejandro_Toledo"

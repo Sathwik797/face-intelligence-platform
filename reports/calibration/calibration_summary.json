@@ -1,0 +1,139 @@
+{
+  "timestamp": "2026-08-16T11:37:45Z",
+  "phase": "Phase_7_Production_Threshold_Calibration",
+  "data_split_evaluated": "validation_split_only",
+  "test_split_protection": "confirmed_zero_access",
+  "num_validation_images": 1395,
+  "num_validation_identities": 59,
+  "validation_pairs_count": {
+    "genuine_pairs": 6565,
+    "impostor_pairs": 50000,
+    "total_pairs": 56565
+  },
+  "score_distributions": {
+    "genuine": {
+      "count": 6565,
+      "mean": 0.6418,
+      "median": 0.6656,
+      "std": 0.1334,
+      "min": -0.1151,
+      "max": 0.9549,
+      "p1": 0.0056,
+      "p5": 0.4483,
+      "p25": 0.6,
+      "p50": 0.6656,
+      "p75": 0.718,
+      "p95": 0.7854,
+      "p99": 0.8259
+    },
+    "impostor": {
+      "count": 50000,
+      "mean": 0.0061,
+      "median": 0.0048,
+      "std": 0.0596,
+      "min": -0.2291,
+      "max": 0.2851,
+      "p1": -0.1278,
+      "p5": -0.0901,
+      "p25": -0.0343,
+      "p50": 0.0048,
+      "p75": 0.0451,
+      "p95": 0.1048,
+      "p99": 0.1535
+    }
+  },
+  "discrimination_metrics": {
+    "validation_roc_auc": 0.9889
+  },
+  "calibration_strategies": {
+    "roc_auc": 0.9889,
+    "eer_operating_point": {
+      "threshold": 0.128,
+      "accuracy": 0.9766,
+      "far": 0.0234,
+      "frr": 0.023458,
+      "precision": 0.8457,
+      "recall": 0.9765,
+      "f1": 0.9064,
+      "acceptance_rate": 0.134,
+      "eer_continuous": 0.0235
+    },
+    "maximum_accuracy": {
+      "threshold": 0.28,
+      "accuracy": 0.9971,
+      "far": 4e-05,
+      "frr": 0.024981,
+      "precision": 0.9997,
+      "recall": 0.975,
+      "f1": 0.9872,
+      "acceptance_rate": 0.1132
+    },
+    "security_oriented_low_far": {
+      "threshold": 0.24,
+      "target_far": 0.001,
+      "achieved_far": 0.00042,
+      "accuracy": 0.9969,
+      "frr": 0.023762,
+      "precision": 0.9967,
+      "recall": 0.9762,
+      "f1": 0.9864,
+      "acceptance_rate": 0.1137,
+      "supported": true
+    },
+    "f1_optimal": {
+      "threshold": 0.284,
+      "accuracy": 0.9971,
+      "far": 2e-05,
+      "frr": 0.024981,
+      "precision": 0.9998,
+      "recall": 0.975,
+      "f1": 0.9873,
+      "acceptance_rate": 0.1132
+    },
+    "far_frr_balanced": {
+      "threshold": 0.128,
+      "far_frr_diff": 5.8e-05,
+      "accuracy": 0.9766,
+      "far": 0.0234,
+      "frr": 0.023458,
+      "precision": 0.8457,
+      "recall": 0.9765,
+      "f1": 0.9064,
+      "acceptance_rate": 0.134
+    }
+  },
+  "threshold_stability": {
+    "num_folds": 5,
+    "eer_threshold_stability": {
+      "mean": 0.1284,
+      "std": 0.0081,
+      "min": 0.118,
+      "max": 0.1427
+    },
+    "max_accuracy_threshold_stability": {
+      "mean": 0.257,
+      "std": 0.0081,
+      "min": 0.245,
+      "max": 0.27
+    },
+    "low_far_threshold_stability": {
+      "mean": 0.217,
+      "std": 0.004,
+      "min": 0.21,
+      "max": 0.22
+    }
+  },
+  "production_recommendation": {
+    "strategy_used": "security_oriented_low_far",
+    "recommended_threshold": 0.24,
+    "expected_validation_far_percent": 0.042,
+    "expected_validation_frr_percent": 2.376,
+    "expected_validation_accuracy_percent": 99.69,
+    "expected_validation_precision_percent": 99.67,
+    "expected_validation_recall_percent": 97.62,
+    "expected_validation_f1_percent": 98.64,
+    "technical_justification": "Selected 0.2400 via Security Oriented Low Far strategy on validation data. For attendance and identity verification, security against false impersonation is paramount (achieved validation FAR = 0.042%). Maintains a high verification accuracy of 99.69% and low rejection rate (FRR = 2.38%) on real facial variations.",
+    "label": "Validation-derived production threshold"
+  },
+  "calibration_runtime_seconds": 9.86
+}

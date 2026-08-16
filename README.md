@@ -6,7 +6,8 @@ This repository contains a modular Face Recognition Attendance System designed a
 > **Note on Machine Learning Methodology:**
 > All feature extraction models (Phase 1 dlib ResNet-34 128D and Phase 4 ArcFace ResNet-50 512D) utilize **pretrained neural network weights** for inference. Embedding extraction is feature transformation; it is **not** custom model training.
 > **Note on Evaluation Protocol & Threshold Calibration:**
-> The official 10-fold verification benchmark implements standard leave-one-fold-out threshold selection (training threshold on 9 folds, testing on 1 held-out fold with zero data leakage). Final production decision thresholds for open-set identification will be systematically calibrated on the project's validation split in Phase 7.
+> - Phase 6 benchmarked verification performance on the official 10-fold LFW dataset.
+> - Phase 7 calibrated the production decision threshold on the project's **independent validation split** (59 identities, 1,395 images), strictly protecting the final hold-out test set from any access.
 
 ---
 
@@ -25,10 +26,11 @@ face_recognition_attendence_system/
 │   ├── matcher.py            # BaseMatcher, EuclideanMatcher & CosineMatcher
 │   ├── gallery.py            # IdentityGallery (multi-template enrollment & search)
 │   ├── pipeline.py           # Baseline (E1) & Modern (E2) Recognition Pipelines
-│   ├── evaluation/           # Formal verification & ML metrics framework
-│   │   ├── __init__.py       # Metrics and evaluator exports
+│   ├── evaluation/           # Verification & threshold calibration framework
+│   │   ├── __init__.py       # Exports
 │   │   ├── metrics.py        # ROC, AUC, EER, FAR, FRR & 10-fold cross-validation
-│   │   └── evaluator.py      # 10-fold verification evaluator with cached embeddings
+│   │   ├── evaluator.py      # 10-fold verification benchmark evaluator
+│   │   └── calibrator.py     # Production threshold calibrator (validation split)
 │   └── models/               # Downloaded ONNX model weights (YuNet, ArcFace)
 ├── config/
 │   ├── __init__.py           # Config loader
@@ -37,8 +39,8 @@ face_recognition_attendence_system/
 │   ├── raw/lfw/              # Full downloaded LFW dataset (5,760 identities)
 │   ├── evaluation/           # Partitioned evaluation images
 │   │   ├── enrollment/       # Reference gallery templates (59 identities, 118 images)
-│   │   ├── validation/       # Validation set for threshold tuning
-│   │   └── test/             # Final hold-out test set
+│   │   ├── validation/       # Validation set for threshold tuning (59 identities, 1,395 images)
+│   │   └── test/             # Final hold-out test set (Protected)
 │   ├── embeddings/           # Serialized IdentityGallery artifacts (arcface_gallery.npz)
 │   └── metadata/             # Versioned split and verification metadata
 │       ├── identities.csv    # List of selected evaluation identities
@@ -46,10 +48,11 @@ face_recognition_attendence_system/
 │       ├── verification_pairs.csv # Official LFW 10-fold pairs (6,000 pairs)
 │       └── dataset_summary.json   # Full dataset audit summary
 ├── reports/                  # Generated experiment reports & visualizations
-│   └── evaluation/           # 10-fold verification summary JSON & plots
-│       ├── README.md         # Detailed Phase 6 evaluation artifact documentation
-│       ├── verification_summary.json # Machine-readable 10-fold evaluation metrics
-│       └── plots/            # ROC curves, score distributions, EER curves
+│   ├── evaluation/           # 10-fold verification summary JSON & plots
+│   └── calibration/          # Production threshold calibration summary JSON & plots
+│       ├── README.md         # Calibration documentation & strategy comparisons
+│       ├── calibration_summary.json # Machine-readable validation calibration metrics
+│       └── plots/            # Calibration curves, FAR/FRR, distributions & operating points
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -58,10 +61,12 @@ face_recognition_attendence_system/
 │   ├── build_gallery.py                   # Enrolls reference identities into gallery
 │   ├── evaluate_identification_pipeline.py# Open-set identification pipeline verification
 │   ├── evaluate_verification.py           # Formal 10-fold LFW verification benchmark
+│   ├── calibrate_threshold.py             # Validation production threshold calibrator
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (64 tests)
+├── tests/                    # PyTest test suite (68 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
+│   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
 │   ├── test_detector.py      # Face detector unit tests (Dlib & Modern)
 │   ├── test_embedder.py      # Embedding extractor unit tests (Dlib & ArcFace)
@@ -82,68 +87,58 @@ face_recognition_attendence_system/
 
 ## 2. Official 10-Fold LFW Face Verification Benchmark (Phase 6)
 
-### Evaluation Protocol
-* **Dataset**: Official LFW Verification Benchmark (6,000 pairs partitioned across 10 non-overlapping folds).
-* **Composition per Fold**: Exactly 300 genuine pairs (same person) + 300 impostor pairs (different person) = 600 pairs per fold.
-* **Threshold Selection Methodology**: Standard leave-one-fold-out cross-validation. For each test fold $k$, the decision threshold is determined solely on the remaining 9 folds (5,400 training pairs) by maximizing training accuracy, and evaluated strictly on the 10th held-out fold (600 test pairs) with zero test-set leakage.
-* **Score Directions**:
-  - **Experiment E1 (dlib)**: Euclidean distance $d(\mathbf{u}, \mathbf{v}) = \|\mathbf{u} - \mathbf{v}\|_2$ (smaller distance $\implies$ more similar).
-  - **Experiment E2 (ArcFace)**: Cosine similarity $S(\hat{\mathbf{u}}, \hat{\mathbf{v}}) = \hat{\mathbf{u}} \cdot \hat{\mathbf{v}}$ (larger similarity $\implies$ more similar).
-
 ### Empirical 10-Fold Verification Results (E1 vs E2)
 
 | Metric | Experiment E1 (dlib Baseline) | Experiment E2 (ArcFace Modern) |
 |---|---|---|
-| **Fold-Calibrated Accuracy ($\text{Mean} \pm \text{Std}$)** | **$97.43\% \pm 0.60\%$** ($0.9743 \pm 0.0060$) | **$98.50\% \pm 0.72\%$** ($0.9850 \pm 0.0072$) |
-| **Fold-Calibrated FAR ($\text{Mean} \pm \text{Std}$)** | **$1.53\% \pm 0.54\%$** ($0.0153 \pm 0.0054$) | **$0.03\% \pm 0.10\%$** ($0.0003 \pm 0.0010$) |
-| **Fold-Calibrated FRR ($\text{Mean} \pm \text{Std}$)** | **$3.60\% \pm 1.38\%$** ($0.0360 \pm 0.0138$) | **$2.97\% \pm 1.40\%$** ($0.0297 \pm 0.0140$) |
+| **Fold-Calibrated Accuracy ($\text{Mean} \pm \text{Std}$)** | **$97.43\% \pm 0.60\%$** | **$98.50\% \pm 0.72\%$** |
+| **Fold-Calibrated FAR ($\text{Mean} \pm \text{Std}$)** | **$1.53\% \pm 0.54\%$** | **$0.03\% \pm 0.10\%$** |
+| **Fold-Calibrated FRR ($\text{Mean} \pm \text{Std}$)** | **$3.60\% \pm 1.38\%$** | **$2.97\% \pm 1.40\%$** |
 | **Fold-Calibrated Threshold ($\text{Mean} \pm \text{Std}$)** | **$0.6345 \pm 0.0022$** (Euclidean) | **$0.2426 \pm 0.0045$** (Cosine) |
 | **Global ROC-AUC** | **0.9941** | **0.9883** |
-| **Fold ROC-AUC ($\text{Mean} \pm \text{Std}$)** | **$0.9941 \pm 0.0029$** | **$0.9883 \pm 0.0078$** |
 | **Global Equal Error Rate (EER)** | **0.0293** ($2.93\%$) | **0.0268** ($2.68\%$) |
-| **Fold EER ($\text{Mean} \pm \text{Std}$)** | **$0.0290 \pm 0.0104$** | **$0.0220 \pm 0.0174$** |
 | **Global EER Operating Threshold** | $0.6557$ (Euclidean) | $0.1160$ (Cosine) |
-| **Evaluated Pairs (Reused Cache)** | **6,000 / 6,000 (100.0%)** | **6,000 / 6,000 (100.0%)** |
 
-### ML Evaluation Evidence
-Full machine-readable evaluation summaries, distribution metrics, and generated visualization plots are preserved in [`reports/evaluation/`](./reports/evaluation/README.md):
-* [`reports/evaluation/verification_summary.json`](./reports/evaluation/verification_summary.json): Complete 10-fold verification benchmark metrics.
-* `reports/evaluation/plots/roc_curve_e1_vs_e2.png`: 10-Fold ROC curves.
-* `reports/evaluation/plots/score_distribution_e1_euclidean.png`: E1 genuine vs impostor Euclidean distance histogram.
-* `reports/evaluation/plots/score_distribution_e2_cosine.png`: E2 genuine vs impostor Cosine similarity histogram.
-* `reports/evaluation/plots/fold_wise_roc_auc.png`: Fold-wise ROC-AUC comparison bar chart.
-* `reports/evaluation/plots/far_frr_eer_curve.png`: FAR vs FRR vs Decision Threshold operating curve for E2.
+Full benchmark reports and visualizations are available in [`reports/evaluation/`](./reports/evaluation/README.md).
 
 ---
 
-## 3. Threshold Definitions & Distinctions
+## 3. Production Threshold Calibration (Phase 7)
 
-1. **Fold-Calibrated Evaluation Threshold**:
-   - Selected per fold using the other 9 training folds to evaluate unbiased generalization on the held-out test fold.
-   - E1 Mean: $\tau = 0.6345$ (Euclidean); E2 Mean: $\tau = 0.2426$ (Cosine).
-2. **EER Operating Threshold**:
-   - The threshold point where the False Acceptance Rate (FAR) equals the False Rejection Rate (FRR).
-   - E1 Global: $\tau = 0.6557$; E2 Global: $\tau = 0.1160$.
-   - *Note*: EER is a diagnostic operating point metric and does not represent the calibrated production decision threshold.
-3. **Provisional Pipeline Threshold**:
-   - Fixed heuristic threshold used in earlier pipeline stages (E1: $0.60$, E2: $0.45$).
-   - *Note*: Formal production threshold calibration on the independent validation split will be conducted in Phase 7.
+### Methodology & Validation Results
+Conducted strictly on the **independent validation split** (59 identities, 1,395 images, 56,565 evaluated pairs) with zero access to the test set:
+
+| Strategy | Threshold ($\tau$) | FAR (%) | FRR (%) | Accuracy (%) | Precision (%) | Recall (%) | F1 (%) |
+|---|---|---|---|---|---|---|---|
+| **A. Equal Error Rate (EER)** | $0.1280$ | $2.340\%$ | $2.346\%$ | $97.66\%$ | $84.57\%$ | $97.65\%$ | $90.64\%$ |
+| **B. Maximum Accuracy** | $0.2800$ | $0.004\%$ | $2.498\%$ | $99.71\%$ | $99.97\%$ | $97.50\%$ | $98.72\%$ |
+| **C. Security Low-FAR (Recommended)** | $\mathbf{0.2400}$ | $\mathbf{0.042\%}$ | $\mathbf{2.376\%}$ | $\mathbf{99.69\%}$ | $\mathbf{99.67\%}$ | $\mathbf{97.62\%}$ | $\mathbf{98.64\%}$ |
+| **D. F1-Optimal** | $0.2840$ | $0.002\%$ | $2.498\%$ | $99.71\%$ | $99.98\%$ | $97.50\%$ | $98.73\%$ |
+| **E. FAR/FRR-Balanced** | $0.1280$ | $2.340\%$ | $2.346\%$ | $97.66\%$ | $84.57\%$ | $97.65\%$ | $90.64\%$ |
+
+* **Recommended Production Threshold**: **$\tau = 0.2400$** (Security-Oriented Low-FAR Strategy).
+* Full calibration plots, distribution percentiles, and stability analyses are documented in [`reports/calibration/`](./reports/calibration/README.md).
 
 ---
 
 ## 4. Setup & Execution Commands
 
-### 1. Run 10-Fold LFW Face Verification Benchmark
+### 1. Run Production Threshold Calibration
+```bash
+python scripts/calibrate_threshold.py
+```
+
+### 2. Run 10-Fold LFW Face Verification Benchmark
 ```bash
 python scripts/evaluate_verification.py
 ```
 
-### 2. Run Complete PyTest Suite (64 tests)
+### 3. Run Complete PyTest Suite (68 tests)
 ```bash
 pytest -v
 ```
 
-### 3. Start Flask Web Application
+### 4. Start Flask Web Application
 ```bash
 python app.py
 ```
