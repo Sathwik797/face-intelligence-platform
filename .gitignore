@@ -28,6 +28,14 @@ dataset/
 !data/metadata/
 !data/metadata/**
 
+# Preserve Evaluation Reports and Plots for Portfolio / Recruiter Evidence
+!reports/
+!reports/evaluation/
+!reports/evaluation/plots/
+!reports/evaluation/plots/*.png
+!reports/evaluation/README.md
+!reports/evaluation/verification_summary.json
+
 # Large Model Weights and Binaries (>100MB / ONNX / Pickle / NPZ)
 ml/models/*.onnx
 *.onnx
@@ -35,8 +43,10 @@ trained_model/*.pkl
 *.pkl
 *.npz
 
-# Evaluation Caches & Large Generated CSVs
+# Exclude Evaluation Biometric Embedding Caches & Raw Pair CSVs
 reports/evaluation/cache/
+reports/evaluation/cache/**
+reports/evaluation/pair_results_*.csv
 reports/evaluation/*.csv
 
 # Runtime output logs & CSVs

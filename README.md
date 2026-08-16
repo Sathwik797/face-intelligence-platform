@@ -47,7 +47,8 @@ face_recognition_attendence_system/
 │       └── dataset_summary.json   # Full dataset audit summary
 ├── reports/                  # Generated experiment reports & visualizations
 │   └── evaluation/           # 10-fold verification summary JSON & plots
-│       ├── verification_summary.json
+│       ├── README.md         # Detailed Phase 6 evaluation artifact documentation
+│       ├── verification_summary.json # Machine-readable 10-fold evaluation metrics
 │       └── plots/            # ROC curves, score distributions, EER curves
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
@@ -104,9 +105,18 @@ face_recognition_attendence_system/
 | **Global EER Operating Threshold** | $0.6557$ (Euclidean) | $0.1160$ (Cosine) |
 | **Evaluated Pairs (Reused Cache)** | **6,000 / 6,000 (100.0%)** | **6,000 / 6,000 (100.0%)** |
 
+### ML Evaluation Evidence
+Full machine-readable evaluation summaries, distribution metrics, and generated visualization plots are preserved in [`reports/evaluation/`](./reports/evaluation/README.md):
+* [`reports/evaluation/verification_summary.json`](./reports/evaluation/verification_summary.json): Complete 10-fold verification benchmark metrics.
+* `reports/evaluation/plots/roc_curve_e1_vs_e2.png`: 10-Fold ROC curves.
+* `reports/evaluation/plots/score_distribution_e1_euclidean.png`: E1 genuine vs impostor Euclidean distance histogram.
+* `reports/evaluation/plots/score_distribution_e2_cosine.png`: E2 genuine vs impostor Cosine similarity histogram.
+* `reports/evaluation/plots/fold_wise_roc_auc.png`: Fold-wise ROC-AUC comparison bar chart.
+* `reports/evaluation/plots/far_frr_eer_curve.png`: FAR vs FRR vs Decision Threshold operating curve for E2.
+
 ---
 
-### Threshold Definitions & Distinctions
+## 3. Threshold Definitions & Distinctions
 
 1. **Fold-Calibrated Evaluation Threshold**:
    - Selected per fold using the other 9 training folds to evaluate unbiased generalization on the held-out test fold.
@@ -121,18 +131,7 @@ face_recognition_attendence_system/
 
 ---
 
-### Score Distribution Characteristics
-
-* **E1 (dlib 128D Euclidean Distance — Lower is more similar)**:
-  - Genuine Pairs ($y=1$): $\mu = 0.4446 \pm 0.0958$ (Median: $0.4382$, Range: $[0.1364, 0.8938]$)
-  - Impostor Pairs ($y=0$): $\mu = 0.8251 \pm 0.0894$ (Median: $0.8238$, Range: $[0.4934, 1.0903]$)
-* **E2 (ArcFace 512D Cosine Similarity — Higher is more similar)**:
-  - Genuine Pairs ($y=1$): $\mu = 0.6374 \pm 0.1472$ (Median: $0.6575$, Range: $[-0.1230, 0.9566]$)
-  - Impostor Pairs ($y=0$): $\mu = 0.0038 \pm 0.0577$ (Median: $0.0051$, Range: $[-0.1746, 0.2354]$)
-
----
-
-## 3. Setup & Execution Commands
+## 4. Setup & Execution Commands
 
 ### 1. Run 10-Fold LFW Face Verification Benchmark
 ```bash
