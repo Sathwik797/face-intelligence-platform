@@ -35,6 +35,10 @@ trained_model/*.pkl
 *.pkl
 *.npz
 
+# Evaluation Caches & Large Generated CSVs
+reports/evaluation/cache/
+reports/evaluation/*.csv
+
 # Runtime output logs & CSVs
 attendance.csv
 attendence.csv

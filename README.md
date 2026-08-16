@@ -5,8 +5,8 @@ This repository contains a modular Face Recognition Attendance System designed a
 
 > **Note on Machine Learning Methodology:**
 > All feature extraction models (Phase 1 dlib ResNet-34 128D and Phase 4 ArcFace ResNet-50 512D) utilize **pretrained neural network weights** for inference. Embedding extraction is feature transformation; it is **not** custom model training.
-> **Note on Threshold Calibration:**
-> The cosine similarity threshold (default `0.45`) used in this phase is **provisional** for pipeline verification. Final optimal recognition thresholds will be calibrated using validation data in Phase 7.
+> **Note on Evaluation Protocol & Threshold Calibration:**
+> The official 10-fold verification benchmark implements standard leave-one-fold-out threshold selection (training threshold on 9 folds, testing on 1 held-out fold with zero data leakage). Final production decision thresholds for open-set identification will be systematically calibrated on the project's validation split in Phase 7.
 
 ---
 
@@ -25,12 +25,16 @@ face_recognition_attendence_system/
 │   ├── matcher.py            # BaseMatcher, EuclideanMatcher & CosineMatcher
 │   ├── gallery.py            # IdentityGallery (multi-template enrollment & search)
 │   ├── pipeline.py           # Baseline (E1) & Modern (E2) Recognition Pipelines
+│   ├── evaluation/           # Formal verification & ML metrics framework
+│   │   ├── __init__.py       # Metrics and evaluator exports
+│   │   ├── metrics.py        # ROC, AUC, EER, FAR, FRR & 10-fold cross-validation
+│   │   └── evaluator.py      # 10-fold verification evaluator with cached embeddings
 │   └── models/               # Downloaded ONNX model weights (YuNet, ArcFace)
 ├── config/
 │   ├── __init__.py           # Config loader
 │   └── config.yaml           # System paths, model parameters, and thresholds
 ├── data/                     # Dataset storage (Gitignored raw/eval images & galleries)
-│   ├── raw/lfw/              # Downloaded raw LFW dataset
+│   ├── raw/lfw/              # Full downloaded LFW dataset (5,760 identities)
 │   ├── evaluation/           # Partitioned evaluation images
 │   │   ├── enrollment/       # Reference gallery templates (59 identities, 118 images)
 │   │   ├── validation/       # Validation set for threshold tuning
@@ -39,8 +43,12 @@ face_recognition_attendence_system/
 │   └── metadata/             # Versioned split and verification metadata
 │       ├── identities.csv    # List of selected evaluation identities
 │       ├── splits.csv        # Image-level split mapping and SHA256 hashes
-│       ├── verification_pairs.csv # Official LFW 10-fold pairs
+│       ├── verification_pairs.csv # Official LFW 10-fold pairs (6,000 pairs)
 │       └── dataset_summary.json   # Full dataset audit summary
+├── reports/                  # Generated experiment reports & visualizations
+│   └── evaluation/           # 10-fold verification summary JSON & plots
+│       ├── verification_summary.json
+│       └── plots/            # ROC curves, score distributions, EER curves
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -48,13 +56,15 @@ face_recognition_attendence_system/
 │   ├── benchmark_embeddings.py            # ArcFace embedding sanity checks & benchmark
 │   ├── build_gallery.py                   # Enrolls reference identities into gallery
 │   ├── evaluate_identification_pipeline.py# Open-set identification pipeline verification
+│   ├── evaluate_verification.py           # Formal 10-fold LFW verification benchmark
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (54 tests)
+├── tests/                    # PyTest test suite (64 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
 │   ├── test_detector.py      # Face detector unit tests (Dlib & Modern)
 │   ├── test_embedder.py      # Embedding extractor unit tests (Dlib & ArcFace)
+│   ├── test_evaluation_metrics.py # ROC, AUC, EER, FAR/FRR & fold-aware metric tests
 │   ├── test_gallery.py       # IdentityGallery multi-template & search tests
 │   ├── test_matcher.py       # Similarity matcher unit tests (Euclidean & Cosine)
 │   ├── test_pipeline.py      # Baseline recognition pipeline tests
@@ -69,100 +79,72 @@ face_recognition_attendence_system/
 
 ---
 
-## 2. Modern Face Recognition Pipeline (Phase 5 — Experiment E2)
+## 2. Official 10-Fold LFW Face Verification Benchmark (Phase 6)
 
-### End-to-End Recognition Workflow
-```
-Input Image (RGB)
-      │
-      ▼
-YuNet Face Detection (OpenCV Deep CNN)
-      │
-      ▼
-Deterministic Primary Face Selection (Highest Confidence Policy)
-      │
-      ▼
-5-Point Facial Landmark Alignment (112x112 Canonical ArcFace Crop)
-      │
-      ▼
-ArcFace Embedding Extraction (512D ResNet-50 Backbone)
-      │
-      ▼
-L2 Hyperspherical Normalization (||e||_2 = 1.0)
-      │
-      ▼
-IdentityGallery Multi-Template Cosine Similarity Search
-      │
-      ▼
-Open-Set Decision Thresholding (Provisional τ = 0.45)
-      │
-      ├── If max(CosineSim) >= τ ──► Recognized Enrolled Identity
-      └── If max(CosineSim) < τ  ──► Rejected as "Unknown"
-```
+### Evaluation Protocol
+* **Dataset**: Official LFW Verification Benchmark (6,000 pairs partitioned across 10 non-overlapping folds).
+* **Composition per Fold**: Exactly 300 genuine pairs (same person) + 300 impostor pairs (different person) = 600 pairs per fold.
+* **Threshold Selection Methodology**: Standard leave-one-fold-out cross-validation. For each test fold $k$, the decision threshold is determined solely on the remaining 9 folds (5,400 training pairs) by maximizing training accuracy, and evaluated strictly on the 10th held-out fold (600 test pairs) with zero test-set leakage.
+* **Score Directions**:
+  - **Experiment E1 (dlib)**: Euclidean distance $d(\mathbf{u}, \mathbf{v}) = \|\mathbf{u} - \mathbf{v}\|_2$ (smaller distance $\implies$ more similar).
+  - **Experiment E2 (ArcFace)**: Cosine similarity $S(\hat{\mathbf{u}}, \hat{\mathbf{v}}) = \hat{\mathbf{u}} \cdot \hat{\mathbf{v}}$ (larger similarity $\implies$ more similar).
 
-### Enrolled Identity Gallery (`IdentityGallery`)
-* **Source Split**: Constructed exclusively from the Phase 2 `enrollment/` split (59 identities, 118 reference images, 2 images per person).
-* **Multi-Template Matching**:
-  $$S_{\text{identity}} = \max_{j \in \text{templates}} (\hat{\mathbf{q}} \cdot \hat{\mathbf{k}}_j)$$
-  $$\text{Top-1 Candidate} = \arg\max_{\text{identity}} (S_{\text{identity}})$$
-* **Open-Set Decision**:
-  $$\text{Decision} = \begin{cases} \text{Top-1 Candidate}, & \text{if } S_{\text{Top-1}} \ge \tau \\ \text{Unknown (None)}, & \text{otherwise} \end{cases}$$
+### Empirical 10-Fold Verification Results (E1 vs E2)
 
----
-
-## 3. Experiment Configuration Profiles
-
-| Feature | Experiment E1 (Baseline) | Experiment E2 (Modern Recognition) |
+| Metric | Experiment E1 (dlib Baseline) | Experiment E2 (ArcFace Modern) |
 |---|---|---|
-| **Detector** | dlib HOG + Linear SVM | OpenCV YuNet Deep CNN |
-| **Preprocessing** | Bounding box crop | 5-Point Affine Landmark Alignment ($112 \times 112$) |
-| **Embedding Model** | Pretrained dlib ResNet-34 | **Pretrained ArcFace ResNet-50** |
-| **Embedding Dimension** | 128D | **512D** |
-| **Vector Space** | Euclidean Space | **Unit Hyperspherical Manifold ($\|\mathbf{e}\|_2 = 1.0$)** |
-| **Gallery Search** | Euclidean Distance ($\|e_1 - e_2\|_2$) | **Multi-Template Cosine Similarity ($\mathbf{e}_1 \cdot \mathbf{e}_2$)** |
-| **Decision Rule** | $\min(d) \le 0.6$ | $\max(S) \ge \tau_{\text{cosine}}$ |
-| **Open-Set Rejection** | Distance threshold | **Cosine similarity threshold** |
+| **Fold-Calibrated Accuracy ($\text{Mean} \pm \text{Std}$)** | **$97.43\% \pm 0.60\%$** ($0.9743 \pm 0.0060$) | **$98.50\% \pm 0.72\%$** ($0.9850 \pm 0.0072$) |
+| **Fold-Calibrated FAR ($\text{Mean} \pm \text{Std}$)** | **$1.53\% \pm 0.54\%$** ($0.0153 \pm 0.0054$) | **$0.03\% \pm 0.10\%$** ($0.0003 \pm 0.0010$) |
+| **Fold-Calibrated FRR ($\text{Mean} \pm \text{Std}$)** | **$3.60\% \pm 1.38\%$** ($0.0360 \pm 0.0138$) | **$2.97\% \pm 1.40\%$** ($0.0297 \pm 0.0140$) |
+| **Fold-Calibrated Threshold ($\text{Mean} \pm \text{Std}$)** | **$0.6345 \pm 0.0022$** (Euclidean) | **$0.2426 \pm 0.0045$** (Cosine) |
+| **Global ROC-AUC** | **0.9941** | **0.9883** |
+| **Fold ROC-AUC ($\text{Mean} \pm \text{Std}$)** | **$0.9941 \pm 0.0029$** | **$0.9883 \pm 0.0078$** |
+| **Global Equal Error Rate (EER)** | **0.0293** ($2.93\%$) | **0.0268** ($2.68\%$) |
+| **Fold EER ($\text{Mean} \pm \text{Std}$)** | **$0.0290 \pm 0.0104$** | **$0.0220 \pm 0.0174$** |
+| **Global EER Operating Threshold** | $0.6557$ (Euclidean) | $0.1160$ (Cosine) |
+| **Evaluated Pairs (Reused Cache)** | **6,000 / 6,000 (100.0%)** | **6,000 / 6,000 (100.0%)** |
 
 ---
 
-## 4. Measured Recognition Pipeline Performance (CPU)
+### Threshold Definitions & Distinctions
 
-Evaluated over 50 Known validation queries and 50 Open-Set Unknown queries (`scripts/evaluate_identification_pipeline.py`):
-* **Known Queries**:
-  - Correct Top-1 Candidate: **96.00%** (48 / 50)
-  - Accepted at Provisional Threshold (`0.45`): **98.00%** (49 / 50)
-  - Average Known Similarity Score: **0.6971**
-* **Unknown Queries (Open-Set Rejection)**:
-  - Rejected as Unknown: **100.00%** (50 / 50)
-  - Average Unknown Similarity Score: **0.1557**
-  - **Score Margin Separation**: **+0.5414**
-* **Per-Query Latency Breakdown**:
-  - YuNet Detection: **4.18 ms**
-  - 5-Point Alignment: **0.25 ms**
-  - ArcFace Embedding (ResNet-50): **94.88 ms**
-  - Exact Gallery Search (118 templates): **0.21 ms**
-  - **Total End-to-End Latency**: **99.53 ms** ($\approx \mathbf{10.0\text{ FPS}}$ on CPU)
+1. **Fold-Calibrated Evaluation Threshold**:
+   - Selected per fold using the other 9 training folds to evaluate unbiased generalization on the held-out test fold.
+   - E1 Mean: $\tau = 0.6345$ (Euclidean); E2 Mean: $\tau = 0.2426$ (Cosine).
+2. **EER Operating Threshold**:
+   - The threshold point where the False Acceptance Rate (FAR) equals the False Rejection Rate (FRR).
+   - E1 Global: $\tau = 0.6557$; E2 Global: $\tau = 0.1160$.
+   - *Note*: EER is a diagnostic operating point metric and does not represent the calibrated production decision threshold.
+3. **Provisional Pipeline Threshold**:
+   - Fixed heuristic threshold used in earlier pipeline stages (E1: $0.60$, E2: $0.45$).
+   - *Note*: Formal production threshold calibration on the independent validation split will be conducted in Phase 7.
 
 ---
 
-## 5. Setup & Execution Commands
+### Score Distribution Characteristics
 
-### 1. Build Enrolled Identity Gallery (E2)
+* **E1 (dlib 128D Euclidean Distance — Lower is more similar)**:
+  - Genuine Pairs ($y=1$): $\mu = 0.4446 \pm 0.0958$ (Median: $0.4382$, Range: $[0.1364, 0.8938]$)
+  - Impostor Pairs ($y=0$): $\mu = 0.8251 \pm 0.0894$ (Median: $0.8238$, Range: $[0.4934, 1.0903]$)
+* **E2 (ArcFace 512D Cosine Similarity — Higher is more similar)**:
+  - Genuine Pairs ($y=1$): $\mu = 0.6374 \pm 0.1472$ (Median: $0.6575$, Range: $[-0.1230, 0.9566]$)
+  - Impostor Pairs ($y=0$): $\mu = 0.0038 \pm 0.0577$ (Median: $0.0051$, Range: $[-0.1746, 0.2354]$)
+
+---
+
+## 3. Setup & Execution Commands
+
+### 1. Run 10-Fold LFW Face Verification Benchmark
 ```bash
-python scripts/build_gallery.py
+python scripts/evaluate_verification.py
 ```
 
-### 2. Run Open-Set Identification Verification
-```bash
-python scripts/evaluate_identification_pipeline.py
-```
-
-### 3. Run Complete PyTest Suite (54 tests)
+### 2. Run Complete PyTest Suite (64 tests)
 ```bash
 pytest -v
 ```
 
-### 4. Start Flask Web Application
+### 3. Start Flask Web Application
 ```bash
 python app.py
 ```
