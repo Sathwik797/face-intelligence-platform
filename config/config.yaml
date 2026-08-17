@@ -61,6 +61,15 @@ temporal:
   challenger_switch_threshold: 3
   max_gap_seconds: 2.0
 
+presence:
+  # Phase 10 Presence & Session Intelligence
+  enabled: true
+  mode: "balanced"           # Options: "fast", "balanced", "strict"
+  min_entry_observations: 3
+  entry_window_seconds: 5.0
+  grace_period_seconds: 10.0
+  max_session_duration_seconds: 28800.0  # 8 hours safeguard
+
 recognition:
   # Validation-derived production cosine similarity threshold from Phase 7
   similarity_threshold: 0.24

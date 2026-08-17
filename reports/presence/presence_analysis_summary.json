@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-08-17T11:03:35Z",
+  "phase": "Phase_10_Presence_Session_Intelligence",
+  "evaluation_protocol": "controlled_presence_state_policy_validation",
+  "evaluation_source": "synthetic_event_sequences_and_state_machine_simulation",
+  "disclaimer": "Presence and session performance was evaluated using controlled simulated event sequences; real camera-stream presence/session performance remains to be validated.",
+  "test_split_protection": "confirmed_zero_access",
+  "production_recognition_threshold": 0.24,
+  "scenarios_evaluated": [
+    "Scenario_A_Normal_Arrival",
+    "Scenario_B_Short_Interruption",
+    "Scenario_C_Long_Absence",
+    "Scenario_D_Return_After_Absence",
+    "Scenario_E_Repeated_Observations",
+    "Scenario_F_Unknown_Only_Sequence",
+    "Scenario_G_Multiple_Identities",
+    "Scenario_H_Quality_Degraded_Interruption"
+  ],
+  "total_event_sequences": 400,
+  "mode_configurations": {
+    "fast": {
+      "enabled": true,
+      "mode": "fast",
+      "min_entry_observations": 2,
+      "entry_window_seconds": 3.0,
+      "grace_period_seconds": 5.0,
+      "max_session_duration_seconds": 28800.0
+    },
+    "balanced": {
+      "enabled": true,
+      "mode": "balanced",
+      "min_entry_observations": 3,
+      "entry_window_seconds": 5.0,
+      "grace_period_seconds": 10.0,
+      "max_session_duration_seconds": 28800.0
+    },
+    "strict": {
+      "enabled": true,
+      "mode": "strict",
+      "min_entry_observations": 5,
+      "entry_window_seconds": 8.0,
+      "grace_period_seconds": 20.0,
+      "max_session_duration_seconds": 28800.0
+    }
+  },
+  "evaluation_results": {
+    "fast": {
+      "mode": "fast",
+      "min_entry_observations": 2,
+      "entry_window_seconds": 3.0,
+      "grace_period_seconds": 5.0,
+      "mean_entry_delay_seconds": 0.5,
+      "session_continuity_rate": 1.0,
+      "interruption_recovery_rate": 1.0,
+      "false_entry_rate": 0.0,
+      "duplicate_session_rate": 0.0,
+      "total_runs_evaluated": 50
+    },
+    "balanced": {
+      "mode": "balanced",
+      "min_entry_observations": 3,
+      "entry_window_seconds": 5.0,
+      "grace_period_seconds": 10.0,
+      "mean_entry_delay_seconds": 1.0,
+      "session_continuity_rate": 1.0,
+      "interruption_recovery_rate": 1.0,
+      "false_entry_rate": 0.0,
+      "duplicate_session_rate": 0.0,
+      "total_runs_evaluated": 50
+    },
+    "strict": {
+      "mode": "strict",
+      "min_entry_observations": 5,
+      "entry_window_seconds": 8.0,
+      "grace_period_seconds": 20.0,
+      "mean_entry_delay_seconds": 2.0,
+      "session_continuity_rate": 1.0,
+      "interruption_recovery_rate": 1.0,
+      "false_entry_rate": 0.0,
+      "duplicate_session_rate": 0.0,
+      "total_runs_evaluated": 50
+    }
+  },
+  "interpretation_of_experimental_evidence": {
+    "validation_nature": "Under the controlled synthetic event scenarios evaluated in Phase 10, the presence state machine achieved 100% session continuity and 100% recovery for interruptions within the configured grace period.",
+    "synthetic_timing": "Reported entry timing values (FAST: 0.50s, BALANCED: 1.00s, STRICT: 2.00s) represent controlled synthetic observation/event timing with simulated 0.5s observation intervals, not measured camera or hardware latency.",
+    "safeguard_clarification": "The max_session_duration_seconds parameter (default 28800.0s / 8 hours) is implemented purely as a configurable safety safeguard against indefinitely open sessions in orphaned camera streams; it is not a fixed universal attendance or workday business rule.",
+    "real_world_scope": "These results validate deterministic state-machine behavior under the tested scenarios; they do not establish real-world camera-stream presence accuracy."
+  },
+  "selected_configuration": {
+    "recommended_mode": "balanced",
+    "min_entry_observations": 3,
+    "entry_window_seconds": 5.0,
+    "grace_period_seconds": 10.0,
+    "max_session_duration_seconds": 28800.0,
+    "justification": "BALANCED mode provides an optimal combination of fast entry confirmation (1.00s at simulated 0.5s observation intervals), 100% interruption recovery across transient 10s gaps, and 0% duplicate session creation under tested synthetic scenarios."
+  },
+  "limitations": [
+    "Evaluated on controlled synthetic event sequences rather than physical camera streams.",
+    "In-memory session state only; persistent relational storage (MySQL/SQLite) is reserved for subsequent phases.",
+    "Spatial multi-face overlap tracking is out of scope."
+  ],
+  "runtime_seconds": 4.34
+}

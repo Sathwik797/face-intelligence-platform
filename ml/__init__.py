@@ -14,6 +14,17 @@ from ml.temporal import (
     TemporalMode,
     TemporalState
 )
+from ml.presence import (
+    PresenceManager,
+    PresenceState,
+    PresenceEventType,
+    PresenceMode,
+    PresenceConfig,
+    PresenceEvent,
+    PresenceSession,
+    IdentityPresenceStateMachine,
+    PRESENCE_PRESETS
+)
 from ml.pipeline import (
     FaceRecognitionPipeline,
     RecognitionResult,
@@ -44,6 +55,15 @@ __all__ = [
     "TemporalPolicyConfig",
     "TemporalMode",
     "TemporalState",
+    "PresenceManager",
+    "PresenceState",
+    "PresenceEventType",
+    "PresenceMode",
+    "PresenceConfig",
+    "PresenceEvent",
+    "PresenceSession",
+    "IdentityPresenceStateMachine",
+    "PRESENCE_PRESETS",
     "FaceRecognitionPipeline",
     "RecognitionResult",
     "ModernRecognitionPipeline",

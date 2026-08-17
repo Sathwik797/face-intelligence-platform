@@ -10,6 +10,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > - Phase 7 calibrated the production decision threshold on the project's **independent validation split** (59 identities, 1,395 images), strictly protecting the final hold-out test set from any access.
 > - Phase 8 established the **Face Quality Assessment (FQA)** subsystem, evaluating visual and geometric quality signals before feature extraction.
 > - Phase 9 established the **Temporal Identity Stabilization** layer to aggregate multi-frame evidence, suppress identity flicker, and absorb transient dropouts.
+> - Phase 10 established the in-memory **Presence & Session Intelligence** state machine to manage presence lifecycles and clean session boundaries.
 
 ---
 
@@ -36,6 +37,11 @@ face_recognition_attendence_system/
 │   │   ├── __init__.py       # Temporal package exports
 │   │   ├── schemas.py        # RecognitionObservation, TemporalRecognitionResult, TemporalPolicyConfig
 │   │   └── stabilizer.py     # TemporalIdentityStabilizer (Fast/Balanced/Stable modes)
+│   ├── presence/             # Presence & Session Intelligence subsystem
+│   │   ├── __init__.py       # Presence package exports
+│   │   ├── schemas.py        # PresenceState, PresenceSession, PresenceEvent, PresenceConfig
+│   │   ├── state_machine.py  # IdentityPresenceStateMachine (State machine lifecycle)
+│   │   └── manager.py        # PresenceManager (Multi-identity orchestrator)
 │   ├── pipeline.py           # Baseline (E1) & Modern (E2) Recognition Pipelines
 │   ├── evaluation/           # Verification & threshold calibration framework
 │   │   ├── __init__.py       # Exports
@@ -45,7 +51,7 @@ face_recognition_attendence_system/
 │   └── models/               # Downloaded ONNX model weights (YuNet, ArcFace)
 ├── config/
 │   ├── __init__.py           # Config loader
-│   └── config.yaml           # System paths, model parameters, quality, temporal, and thresholds
+│   └── config.yaml           # System paths, model parameters, quality, temporal, presence, and thresholds
 ├── data/                     # Dataset storage (Gitignored raw/eval images & galleries)
 │   ├── raw/lfw/              # Full downloaded LFW dataset (5,760 identities)
 │   ├── evaluation/           # Partitioned evaluation images
@@ -62,10 +68,11 @@ face_recognition_attendence_system/
 │   ├── evaluation/           # 10-fold verification summary JSON & plots
 │   ├── calibration/          # Production threshold calibration summary JSON & plots
 │   ├── quality/              # Face quality analysis summary JSON & plots
-│   └── temporal/             # Temporal stability analysis summary JSON & plots
-│       ├── README.md         # Temporal policy documentation & mode comparisons
-│       ├── temporal_analysis_summary.json # Machine-readable recovery & latency metrics
-│       └── plots/            # Evidence curves, latency distributions, and switch timelines
+│   ├── temporal/             # Temporal stability analysis summary JSON & plots
+│   └── presence/             # Presence & session state policy analysis JSON & plots
+│       ├── README.md         # Presence state machine documentation & lifecycle rules
+│       ├── presence_analysis_summary.json # Machine-readable continuity & recovery metrics
+│       └── plots/            # State transitions, session lifecycles, and trade-off comparisons
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -77,9 +84,10 @@ face_recognition_attendence_system/
 │   ├── calibrate_threshold.py             # Validation production threshold calibrator
 │   ├── evaluate_face_quality.py           # Validation face quality assessment & experiment
 │   ├── evaluate_temporal_stability.py     # Validation temporal identity stability evaluation
+│   ├── evaluate_presence_session.py       # Controlled presence & session policy evaluation
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (88 tests)
+├── tests/                    # PyTest test suite (100 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -91,6 +99,7 @@ face_recognition_attendence_system/
 │   ├── test_pipeline.py      # Baseline recognition pipeline tests
 │   ├── test_quality.py       # Face Quality Assessment & metric unit tests
 │   ├── test_temporal.py      # Temporal stabilization & state machine tests
+│   ├── test_presence.py      # Presence state machine & session lifecycle tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API integration tests
 ├── templates/                # Frontend HTML views
@@ -163,43 +172,63 @@ Evaluated on simulated temporal sequences derived from the independent validatio
 | **BALANCED Mode (Default)** | $\mathbf{7}$ | $\mathbf{4}$ | **$4.3$** (~$143\text{ ms}$ at assumed $30\text{ FPS}$) | **$97.2\%$$ ($194 / 200$) | **$100.0\%$$ ($100 / 100$) |
 | **STABLE Mode** | $10$ | $6$ | **$6.8$** | **$63.8\%$** ($128 / 200$) | **$100.0\%$** ($100 / 100$) |
 
-* **Interpretation of Experimental Evidence**:
-  - The experiment validates temporal state-transition rules and consensus logic under controlled simulated conditions.
-  - Under simulated transient single-frame Unknown dropout, the Balanced policy recovered $97.2\%$ of temporary Unknown events while preserving the active identity.
-  - Under simulated single-frame rogue challenger blips, the Balanced policy suppressed $100/100$ rogue blips due to requiring sustained evidence before switching.
-  - Real contiguous video-stream recognition performance remains unvalidated and constitutes future empirical work.
 * Full temporal plots and policy documentation are in [`reports/temporal/`](./reports/temporal/README.md).
 
 ---
 
-## 6. Setup & Execution Commands
+## 6. Presence & Session Intelligence (Phase 10)
 
-### 1. Run Temporal Identity Stability Evaluation
+### Controlled Presence Policy Validation Results
+Evaluated across 8 operational scenarios (400 event sequences):
+
+| Operating Mode | Min Entry Obs | Entry Window (s) | Grace Period (s) | Controlled Synthetic Entry Timing (s) | Session Continuity (%) | Interruption Recovery (%) | Unknown False Entry (%) |
+|---|---|---|---|---|---|---|---|
+| **FAST Mode** | $2$ | $3.0$ | $5.0$ | **$0.50$** (2 frames at 0.5s interval) | **$100.0\%$** | **$100.0\%$** | **$0.0\%$** |
+| **BALANCED Mode (Default)** | $\mathbf{3}$ | $\mathbf{5.0}$ | $\mathbf{10.0}$ | **$1.00$** (3 frames at 0.5s interval) | **$100.0\%$** | **$100.0\%$** | **$0.0\%$** |
+| **STRICT Mode** | $5$ | $8.0$ | $20.0$ | **$2.00$** (5 frames at 0.5s interval) | **$100.0\%$** | **$100.0\%$** | **$0.0\%$** |
+
+* **Interpretation of Experimental Evidence**:
+  - Under the controlled synthetic event scenarios evaluated in Phase 10, the presence state machine achieved 100% session continuity and 100% recovery for interruptions within the configured grace period.
+  - Reported entry timing values represent controlled synthetic observation/event timing with simulated 0.5s observation intervals, not measured camera or hardware latency.
+  - The `max_session_duration_seconds: 28800.0` parameter is implemented purely as a configurable safety safeguard against indefinitely open sessions in orphaned camera streams; it is not a fixed universal attendance or workday business rule.
+  - These results validate deterministic state-machine behavior under the tested scenarios; they do not establish real-world camera-stream presence accuracy.
+* Full presence state machine documentation and lifecycle plots are in [`reports/presence/`](./reports/presence/README.md).
+
+---
+
+## 7. Setup & Execution Commands
+
+### 1. Run Presence & Session Intelligence Evaluation
+```bash
+python scripts/evaluate_presence_session.py
+```
+
+### 2. Run Temporal Identity Stability Evaluation
 ```bash
 python scripts/evaluate_temporal_stability.py
 ```
 
-### 2. Run Face Quality Assessment Evaluation
+### 3. Run Face Quality Assessment Evaluation
 ```bash
 python scripts/evaluate_face_quality.py
 ```
 
-### 3. Run Production Threshold Calibration
+### 4. Run Production Threshold Calibration
 ```bash
 python scripts/calibrate_threshold.py
 ```
 
-### 4. Run 10-Fold LFW Face Verification Benchmark
+### 5. Run 10-Fold LFW Face Verification Benchmark
 ```bash
 python scripts/evaluate_verification.py
 ```
 
-### 5. Run Complete PyTest Suite (88 tests)
+### 6. Run Complete PyTest Suite (100 tests)
 ```bash
 pytest -v
 ```
 
-### 6. Start Flask Web Application
+### 7. Start Flask Web Application
 ```bash
 python app.py
 ```
