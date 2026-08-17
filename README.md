@@ -12,6 +12,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > - Phase 9 established the **Temporal Identity Stabilization** layer to aggregate multi-frame evidence, suppress identity flicker, and absorb transient dropouts.
 > - Phase 10 established the in-memory **Presence & Session Intelligence** state machine to manage presence lifecycles and clean session boundaries.
 > - Phase 11 established the **System Integration & Runtime Orchestration** subsystem composing all intelligence layers into an end-to-end fault-tolerant processing engine.
+> - Phase 12 established the **Application API & Service Boundary Layer** exposing runtime lifecycle, frame processing, and presence queries via clean RESTful APIs.
 
 ---
 
@@ -20,8 +21,19 @@ This repository contains a modular Face Recognition Attendance System designed a
 ```
 face_recognition_attendence_system/
 ├── app/
-│   ├── __init__.py           # Flask application factory
-│   └── routes.py             # API endpoints (/ and /recognize)
+│   ├── __init__.py           # Flask application factory with Blueprint registration
+│   ├── routes/               # API route blueprints
+│   │   ├── __init__.py       # Route blueprint exports
+│   │   ├── health.py         # /api/v1/health
+│   │   ├── runtime.py        # /api/v1/runtime (start, stop, reset, status, process-frame)
+│   │   ├── presence.py       # /api/v1/presence (active, history, identity query)
+│   │   └── legacy.py         # / (web UI) and /recognize (backward compatibility)
+│   ├── services/             # Application service adapters
+│   │   ├── __init__.py       # Service exports
+│   │   └── runtime_service.py # Thread-safe RuntimeService wrapper
+│   └── schemas/              # JSON response serialization helpers
+│       ├── __init__.py       # Schema exports
+│       └── responses.py      # Standardized response formatters
 ├── ml/
 │   ├── __init__.py           # Package exports
 │   ├── detector.py           # BaseDetector, DlibHOGDetector & ModernFaceDetector
@@ -94,7 +106,7 @@ face_recognition_attendence_system/
 │   ├── run_runtime_orchestrator.py        # Runtime orchestrator demonstration & benchmark
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (111 tests)
+├── tests/                    # PyTest test suite (128 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -108,8 +120,9 @@ face_recognition_attendence_system/
 │   ├── test_temporal.py      # Temporal stabilization & state machine tests
 │   ├── test_presence.py      # Presence state machine & session lifecycle tests
 │   ├── test_runtime.py       # End-to-end runtime orchestration tests
+│   ├── test_api_v2.py        # Phase 12 REST API & runtime service tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
-│   └── test_api.py           # Web API integration tests
+│   └── test_api.py           # Web API legacy integration tests
 ├── templates/                # Frontend HTML views
 ├── static/                   # Frontend CSS
 ├── requirements.txt          # Python dependencies
@@ -210,45 +223,63 @@ $$\text{BaseFrameSource} \xrightarrow{\text{RGB Frame}} \text{ModernRecognitionP
 
 ---
 
-## 8. Setup & Execution Commands
+## 8. Application API & Service Boundary (Phase 12)
 
-### 1. Run Runtime Orchestration Demonstration
-```bash
-python scripts/run_runtime_orchestrator.py
-```
+$$\text{HTTP Client} \xrightarrow{\text{Base64 Frame}} \text{Flask API Blueprint} \xrightarrow{\text{Decode}} \text{RuntimeService} \xrightarrow{\text{Thread-Safe Lock}} \text{FaceIntelligenceRuntime} \xrightarrow{\text{JSON Schema}} \text{HTTP 200 OK}$$
 
-### 2. Run Presence & Session Intelligence Evaluation
-```bash
-python scripts/evaluate_presence_session.py
-```
+* **RESTful Versioned Endpoints (`/api/v1/...`)**:
+  - `GET /api/v1/health`: System status, runtime state, and readiness.
+  - `GET /api/v1/runtime/status`: Real-time frame counters, session counts, and latencies.
+  - `POST /api/v1/runtime/start`: Starts runtime orchestrator.
+  - `POST /api/v1/runtime/stop`: Gracefully closes active sessions with reason `"runtime_shutdown"`.
+  - `POST /api/v1/runtime/reset`: Resets temporal, presence, and runtime history.
+  - `POST /api/v1/runtime/process-frame`: Ingests base64 image payload and returns structured `RuntimeFrameResult`.
+  - `GET /api/v1/presence/active`: Lists current active presence sessions.
+  - `GET /api/v1/presence/history`: Lists archived presence sessions.
+  - `GET /api/v1/presence/identity/<name>`: Queries presence status for a specific person.
+* **Legacy Compatibility**: `/` and `/recognize` preserved with `X-API-Deprecated: true` header.
 
-### 3. Run Temporal Identity Stability Evaluation
-```bash
-python scripts/evaluate_temporal_stability.py
-```
+---
 
-### 4. Run Face Quality Assessment Evaluation
-```bash
-python scripts/evaluate_face_quality.py
-```
+## 9. Setup & Execution Commands
 
-### 5. Run Production Threshold Calibration
-```bash
-python scripts/calibrate_threshold.py
-```
-
-### 6. Run 10-Fold LFW Face Verification Benchmark
-```bash
-python scripts/evaluate_verification.py
-```
-
-### 7. Run Complete PyTest Suite (111 tests)
-```bash
-pytest -v
-```
-
-### 8. Start Flask Web Application
+### 1. Start Flask Web Application & REST API
 ```bash
 python app.py
 ```
 Access the application in your browser at `http://127.0.0.1:5000/`.
+
+### 2. Run Complete PyTest Suite (128 tests)
+```bash
+pytest -v
+```
+
+### 3. Run Runtime Orchestration Demonstration
+```bash
+python scripts/run_runtime_orchestrator.py
+```
+
+### 4. Run Presence & Session Intelligence Evaluation
+```bash
+python scripts/evaluate_presence_session.py
+```
+
+### 5. Run Temporal Identity Stability Evaluation
+```bash
+python scripts/evaluate_temporal_stability.py
+```
+
+### 6. Run Face Quality Assessment Evaluation
+```bash
+python scripts/evaluate_face_quality.py
+```
+
+### 7. Run Production Threshold Calibration
+```bash
+python scripts/calibrate_threshold.py
+```
+
+### 8. Run 10-Fold LFW Face Verification Benchmark
+```bash
+python scripts/evaluate_verification.py
+```
