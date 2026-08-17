@@ -14,6 +14,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > - Phase 11 established the **System Integration & Runtime Orchestration** subsystem composing all intelligence layers into an end-to-end fault-tolerant processing engine.
 > - Phase 12 established the **Application API & Service Boundary Layer** exposing runtime lifecycle, frame processing, and presence queries via clean RESTful APIs.
 > - Phase 13 established the **Web Application Integration & Dashboard** providing a real-time, responsive interface for webcam streaming, bounding box visualization, and operational telemetry.
+> - Phase 14 established the **Attendance Business Engine & Persistence Repository** mapping continuous presence sessions into idempotent daily records with thread-safe SQLite persistence and export APIs.
 
 ---
 
@@ -28,13 +29,20 @@ face_recognition_attendence_system/
 │   │   ├── health.py         # /api/v1/health
 │   │   ├── runtime.py        # /api/v1/runtime (start, stop, reset, status, process-frame)
 │   │   ├── presence.py       # /api/v1/presence (active, history, identity query)
+│   │   ├── attendance.py     # /api/v1/attendance (records, summary, export)
 │   │   └── legacy.py         # / (web UI) and /recognize (backward compatibility)
 │   ├── services/             # Application service adapters
 │   │   ├── __init__.py       # Service exports
-│   │   └── runtime_service.py # Thread-safe RuntimeService wrapper
-│   └── schemas/              # JSON response serialization helpers
+│   │   ├── runtime_service.py # Thread-safe RuntimeService wrapper
+│   │   └── attendance_service.py # Attendance business policy engine
+│   ├── repositories/         # Persistence repository adapters
+│   │   ├── __init__.py       # Repository exports
+│   │   ├── base.py           # BaseAttendanceRepository interface
+│   │   └── sqlite_repository.py # Thread-safe SQLite repository
+│   └── schemas/              # JSON response & attendance serialization helpers
 │       ├── __init__.py       # Schema exports
-│       └── responses.py      # Standardized response formatters
+│       ├── responses.py      # Standardized response formatters
+│       └── attendance.py     # AttendanceRecord, SessionAuditEntry & Summary
 ├── ml/
 │   ├── __init__.py           # Package exports
 │   ├── detector.py           # BaseDetector, DlibHOGDetector & ModernFaceDetector
@@ -89,9 +97,12 @@ face_recognition_attendence_system/
 │   ├── quality/              # Face quality analysis summary JSON & plots
 │   ├── temporal/             # Temporal stability analysis summary JSON & plots
 │   ├── presence/             # Presence & session state policy analysis JSON & plots
-│   └── runtime/              # Runtime orchestration summary JSON & documentation
-│       ├── README.md         # Runtime architecture, lifecycle, and telemetry documentation
-│       └── runtime_analysis_summary.json # Machine-readable runtime execution & latency statistics
+│   ├── runtime/              # Runtime orchestration summary JSON & documentation
+│   │   ├── README.md         # Runtime architecture, lifecycle, and telemetry documentation
+│   │   └── runtime_analysis_summary.json # Machine-readable runtime execution & latency statistics
+│   └── attendance/           # Attendance persistence summary JSON & documentation
+│       ├── README.md         # Attendance schema, business rules & repository architecture
+│       └── attendance_analysis_summary.json # Machine-readable attendance system summary
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -107,7 +118,7 @@ face_recognition_attendence_system/
 │   ├── run_runtime_orchestrator.py        # Runtime orchestrator demonstration & benchmark
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (134 tests)
+├── tests/                    # PyTest test suite (149 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -123,6 +134,7 @@ face_recognition_attendence_system/
 │   ├── test_runtime.py       # End-to-end runtime orchestration tests
 │   ├── test_api_v2.py        # Phase 12 REST API & runtime service tests
 │   ├── test_dashboard_routes.py # Phase 13 Web dashboard & asset tests
+│   ├── test_attendance.py    # Phase 14 AttendanceEngine & SQLite persistence tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API legacy integration tests
 ├── templates/                # Frontend HTML views
@@ -264,7 +276,20 @@ $$\text{HTTP Client} \xrightarrow{\text{Base64 Frame}} \text{Flask API Blueprint
 
 ---
 
-## 10. Setup & Execution Commands
+## 10. Attendance Business Engine & Persistence Repository (Phase 14)
+
+$$\text{PresenceManager} \xrightarrow{\text{Events \& Sessions}} \text{AttendanceService} \xrightarrow{\text{Idempotency \& Dwell Rules}} \text{SQLiteAttendanceRepository} \xrightarrow{\text{REST APIs}} \text{Daily Records \& CSV Exports}$$
+
+* **Idempotent Daily Records**: Maps multiple continuous presence sessions throughout a day to a single `AttendanceRecord` per person per calendar date.
+* **Thread-Safe SQLite Persistence**: Zero-dependency SQLite implementation storing `attendance_records` and `session_audit_log` with atomic transactional guarantees.
+* **Attendance REST APIs (`/api/v1/attendance/`)**:
+  - `GET /api/v1/attendance/records`: Query daily records filtered by `date` and `identity`.
+  - `GET /api/v1/attendance/summary`: Daily statistical summary (total present, in progress, total & mean dwell time).
+  - `GET /api/v1/attendance/export`: Export attendance records as downloadable `csv` or `json`.
+
+---
+
+## 11. Setup & Execution Commands
 
 ### 1. Start Flask Web Application & REST API
 ```bash
@@ -272,7 +297,7 @@ python app.py
 ```
 Access the application in your browser at `http://127.0.0.1:5000/`.
 
-### 2. Run Complete PyTest Suite (134 tests)
+### 2. Run Complete PyTest Suite (149 tests)
 ```bash
 pytest -v
 ```

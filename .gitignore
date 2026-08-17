@@ -23,12 +23,20 @@ dataset/
 *.bmp
 *.webp
 
+# SQLite Databases & Dynamic Persistence
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db
+*.sqlite
+*.sqlite3
+
 # Preserve metadata directory structure
 !data/
 !data/metadata/
 !data/metadata/**
 
-# Preserve Evaluation, Calibration, Quality, Temporal, Presence & Runtime Reports/Plots for Portfolio Evidence
+# Preserve Evaluation, Calibration, Quality, Temporal, Presence, Runtime & Attendance Reports for Portfolio Evidence
 !reports/
 !reports/evaluation/
 !reports/evaluation/plots/
@@ -64,6 +72,10 @@ dataset/
 !reports/runtime/README.md
 !reports/runtime/runtime_analysis_summary.json
 
+!reports/attendance/
+!reports/attendance/README.md
+!reports/attendance/attendance_analysis_summary.json
+
 # Large Model Weights and Binaries (>100MB / ONNX / Pickle / NPZ)
 ml/models/*.onnx
 *.onnx
@@ -96,6 +108,10 @@ reports/presence/*.csv
 reports/runtime/cache/
 reports/runtime/cache/**
 reports/runtime/*.csv
+
+reports/attendance/cache/
+reports/attendance/cache/**
+reports/attendance/*.csv
 
 # Runtime output logs & CSVs
 attendance.csv

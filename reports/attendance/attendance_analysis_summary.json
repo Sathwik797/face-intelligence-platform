@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-08-17T11:51:00Z",
+  "phase": "Phase_14_Attendance_Business_Engine_Persistence_Repository",
+  "database_type": "sqlite3_standard_library",
+  "database_schema": {
+    "tables": [
+      "attendance_records",
+      "session_audit_log"
+    ],
+    "unique_constraints": [
+      "UNIQUE(identity, date)"
+    ]
+  },
+  "business_rules": {
+    "idempotency_enforced": true,
+    "first_check_in_anchored": true,
+    "last_check_out_updated_on_exit": true,
+    "cumulative_dwell_accumulation": true,
+    "default_status": "PRESENT",
+    "configurable_min_present_seconds": 0.0
+  },
+  "api_endpoints": [
+    "GET /api/v1/attendance/records",
+    "GET /api/v1/attendance/summary",
+    "GET /api/v1/attendance/export"
+  ],
+  "test_suite_status": "149_tests_passing",
+  "test_split_protection": "confirmed_zero_access",
+  "production_recognition_threshold": 0.24
+}

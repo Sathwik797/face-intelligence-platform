@@ -16,10 +16,16 @@ class RuntimeService:
     """
     Application-level singleton adapter providing thread-safe lifecycle control
     and frame processing access to FaceIntelligenceRuntime.
+    Optionally notifies AttendanceService of presence transitions.
     """
 
-    def __init__(self, runtime: FaceIntelligenceRuntime):
+    def __init__(
+        self,
+        runtime: FaceIntelligenceRuntime,
+        attendance_service: Optional[Any] = None
+    ):
         self.runtime = runtime
+        self.attendance_service = attendance_service
         self._lock = threading.Lock()
 
     @classmethod
@@ -27,7 +33,8 @@ class RuntimeService:
         cls,
         config: Dict[str, Any],
         gallery_path: Optional[str] = None,
-        clock: Optional[Callable[[], datetime]] = None
+        clock: Optional[Callable[[], datetime]] = None,
+        attendance_service: Optional[Any] = None
     ) -> "RuntimeService":
         """Factory creating a RuntimeService with an initialized FaceIntelligenceRuntime."""
         runtime = FaceIntelligenceRuntime.from_config(
@@ -35,7 +42,7 @@ class RuntimeService:
             gallery_path=gallery_path,
             clock=clock
         )
-        return cls(runtime=runtime)
+        return cls(runtime=runtime, attendance_service=attendance_service)
 
     @property
     def status(self) -> RuntimeStatus:
@@ -47,7 +54,14 @@ class RuntimeService:
 
     def stop(self, reason: str = "runtime_shutdown") -> List[PresenceEvent]:
         with self._lock:
-            return self.runtime.stop(reason=reason)
+            shutdown_events = self.runtime.stop(reason=reason)
+            if self.attendance_service is not None:
+                for ev in shutdown_events:
+                    try:
+                        self.attendance_service._handle_presence_event(ev)
+                    except Exception:
+                        pass
+            return shutdown_events
 
     def reset(self):
         with self._lock:
@@ -62,7 +76,16 @@ class RuntimeService:
             if self.runtime.status != RuntimeStatus.RUNNING:
                 # Automatically start runtime if not yet started
                 self.runtime.start()
-            return self.runtime.process_frame(rgb_frame, timestamp=timestamp)
+            result = self.runtime.process_frame(rgb_frame, timestamp=timestamp)
+
+            # Forward events to AttendanceService if attached
+            if self.attendance_service is not None and result.presence_events:
+                try:
+                    self.attendance_service.process_frame_result(result)
+                except Exception:
+                    pass
+
+            return result
 
     def get_status(self) -> Dict[str, Any]:
         with self._lock:
