@@ -10,6 +10,7 @@ from app.schemas.attendance import (
     AttendanceStatus,
     AttendanceDailySummary
 )
+from app.schemas.identities import EnrolledIdentityInfo
 from app.repositories.base import BaseAttendanceRepository
 
 
@@ -84,6 +85,17 @@ class SQLiteAttendanceRepository(BaseAttendanceRepository):
                 """)
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_date ON session_audit_log(date);")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_identity ON session_audit_log(identity);")
+
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS enrolled_identities (
+                        identity TEXT PRIMARY KEY,
+                        template_count INTEGER NOT NULL DEFAULT 1,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        notes TEXT
+                    );
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_enrolled_identity ON enrolled_identities(identity);")
                 conn.commit()
             finally:
                 if self._conn is None:
@@ -242,6 +254,85 @@ class SQLiteAttendanceRepository(BaseAttendanceRepository):
             average_dwell_seconds=avg_dwell
         )
 
+    def upsert_enrolled_identity(self, info: EnrolledIdentityInfo) -> EnrolledIdentityInfo:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO enrolled_identities (
+                        identity, template_count, created_at, updated_at, notes
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(identity) DO UPDATE SET
+                        template_count = excluded.template_count,
+                        updated_at = excluded.updated_at,
+                        notes = excluded.notes
+                """, (
+                    info.identity,
+                    int(info.template_count),
+                    info.created_at,
+                    info.updated_at,
+                    info.notes
+                ))
+                conn.commit()
+                return info
+            finally:
+                if self._conn is None:
+                    conn.close()
+
+    def get_enrolled_identity(self, identity: str) -> Optional[EnrolledIdentityInfo]:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM enrolled_identities WHERE identity = ?", (identity,))
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+                return EnrolledIdentityInfo(
+                    identity=row["identity"],
+                    template_count=int(row["template_count"]),
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                    notes=row["notes"]
+                )
+            finally:
+                if self._conn is None:
+                    conn.close()
+
+    def list_enrolled_identities(self) -> List[EnrolledIdentityInfo]:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM enrolled_identities ORDER BY identity ASC")
+                rows = cursor.fetchall()
+                return [
+                    EnrolledIdentityInfo(
+                        identity=r["identity"],
+                        template_count=int(r["template_count"]),
+                        created_at=r["created_at"],
+                        updated_at=r["updated_at"],
+                        notes=r["notes"]
+                    )
+                    for r in rows
+                ]
+            finally:
+                if self._conn is None:
+                    conn.close()
+
+    def delete_enrolled_identity(self, identity: str) -> bool:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM enrolled_identities WHERE identity = ?", (identity,))
+                conn.commit()
+                return cursor.rowcount > 0
+            finally:
+                if self._conn is None:
+                    conn.close()
+
     def clear(self) -> None:
         with self._lock:
             conn = self._get_connection()
@@ -249,6 +340,7 @@ class SQLiteAttendanceRepository(BaseAttendanceRepository):
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM attendance_records;")
                 cursor.execute("DELETE FROM session_audit_log;")
+                cursor.execute("DELETE FROM enrolled_identities;")
                 conn.commit()
             finally:
                 if self._conn is None:

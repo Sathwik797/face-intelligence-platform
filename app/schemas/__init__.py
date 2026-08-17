@@ -11,6 +11,10 @@ from app.schemas.attendance import (
     SessionAuditEntry,
     AttendanceDailySummary
 )
+from app.schemas.identities import (
+    EnrolledIdentityInfo,
+    EnrollmentResult
+)
 
 __all__ = [
     "serialize_frame_result",
@@ -21,5 +25,7 @@ __all__ = [
     "AttendanceConfig",
     "AttendanceRecord",
     "SessionAuditEntry",
-    "AttendanceDailySummary"
+    "AttendanceDailySummary",
+    "EnrolledIdentityInfo",
+    "EnrollmentResult"
 ]

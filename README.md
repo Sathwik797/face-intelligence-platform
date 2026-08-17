@@ -15,6 +15,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > - Phase 12 established the **Application API & Service Boundary Layer** exposing runtime lifecycle, frame processing, and presence queries via clean RESTful APIs.
 > - Phase 13 established the **Web Application Integration & Dashboard** providing a real-time, responsive interface for webcam streaming, bounding box visualization, and operational telemetry.
 > - Phase 14 established the **Attendance Business Engine & Persistence Repository** mapping continuous presence sessions into idempotent daily records with thread-safe SQLite persistence and export APIs.
+> - Phase 15 established the **Dynamic Identity Enrollment & Gallery Management Subsystem** providing quality-gated multi-template biometric enrollment and atomic gallery synchronization.
 
 ---
 
@@ -30,11 +31,13 @@ face_recognition_attendence_system/
 │   │   ├── runtime.py        # /api/v1/runtime (start, stop, reset, status, process-frame)
 │   │   ├── presence.py       # /api/v1/presence (active, history, identity query)
 │   │   ├── attendance.py     # /api/v1/attendance (records, summary, export)
+│   │   ├── identities.py     # /api/v1/identities (list, get, enroll, delete)
 │   │   └── legacy.py         # / (web UI) and /recognize (backward compatibility)
 │   ├── services/             # Application service adapters
 │   │   ├── __init__.py       # Service exports
 │   │   ├── runtime_service.py # Thread-safe RuntimeService wrapper
-│   │   └── attendance_service.py # Attendance business policy engine
+│   │   ├── attendance_service.py # Attendance business policy engine
+│   │   └── enrollment_service.py # Quality-gated dynamic enrollment service
 │   ├── repositories/         # Persistence repository adapters
 │   │   ├── __init__.py       # Repository exports
 │   │   ├── base.py           # BaseAttendanceRepository interface
@@ -42,14 +45,15 @@ face_recognition_attendence_system/
 │   └── schemas/              # JSON response & attendance serialization helpers
 │       ├── __init__.py       # Schema exports
 │       ├── responses.py      # Standardized response formatters
-│       └── attendance.py     # AttendanceRecord, SessionAuditEntry & Summary
+│       ├── attendance.py     # AttendanceRecord, SessionAuditEntry & Summary
+│       └── identities.py     # EnrolledIdentityInfo & EnrollmentResult
 ├── ml/
 │   ├── __init__.py           # Package exports
 │   ├── detector.py           # BaseDetector, DlibHOGDetector & ModernFaceDetector
 │   ├── aligner.py            # FaceAligner (5-point affine transformation)
 │   ├── embedder.py           # BaseEmbedder, DlibEmbedder (128D) & ArcFaceEmbedder (512D)
 │   ├── matcher.py            # BaseMatcher, EuclideanMatcher & CosineMatcher
-│   ├── gallery.py            # IdentityGallery (multi-template enrollment & search)
+│   ├── gallery.py            # IdentityGallery (multi-template enrollment, search & dynamic removal)
 │   ├── quality/              # Face Quality Assessment (FQA) subsystem
 │   │   ├── __init__.py       # Quality package exports
 │   │   ├── schemas.py        # FaceQualityMetrics, QualityThresholds, QualityMode
@@ -100,9 +104,12 @@ face_recognition_attendence_system/
 │   ├── runtime/              # Runtime orchestration summary JSON & documentation
 │   │   ├── README.md         # Runtime architecture, lifecycle, and telemetry documentation
 │   │   └── runtime_analysis_summary.json # Machine-readable runtime execution & latency statistics
-│   └── attendance/           # Attendance persistence summary JSON & documentation
-│       ├── README.md         # Attendance schema, business rules & repository architecture
-│       └── attendance_analysis_summary.json # Machine-readable attendance system summary
+│   ├── attendance/           # Attendance persistence summary JSON & documentation
+│   │   ├── README.md         # Attendance schema, business rules & repository architecture
+│   │   └── attendance_analysis_summary.json # Machine-readable attendance system summary
+│   └── enrollment/           # Identity enrollment summary JSON & documentation
+│       ├── README.md         # Quality-gated enrollment & gallery architecture
+│       └── enrollment_analysis_summary.json # Machine-readable enrollment system summary
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -118,7 +125,7 @@ face_recognition_attendence_system/
 │   ├── run_runtime_orchestrator.py        # Runtime orchestrator demonstration & benchmark
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (149 tests)
+├── tests/                    # PyTest test suite (157 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -135,6 +142,7 @@ face_recognition_attendence_system/
 │   ├── test_api_v2.py        # Phase 12 REST API & runtime service tests
 │   ├── test_dashboard_routes.py # Phase 13 Web dashboard & asset tests
 │   ├── test_attendance.py    # Phase 14 AttendanceEngine & SQLite persistence tests
+│   ├── test_enrollment.py    # Phase 15 Dynamic Enrollment & Gallery Management tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API legacy integration tests
 ├── templates/                # Frontend HTML views
@@ -289,7 +297,21 @@ $$\text{PresenceManager} \xrightarrow{\text{Events \& Sessions}} \text{Attendanc
 
 ---
 
-## 11. Setup & Execution Commands
+## 11. Dynamic Identity Enrollment & Gallery Management (Phase 15)
+
+$$\text{Enrollment Frame} \xrightarrow{\text{YuNet \& Landmarks}} \text{Phase 8 FQA Validation} \xrightarrow{\text{ArcFace 512D}} \text{Atomic Sync Lock} \begin{cases} \text{In-Memory IdentityGallery} \\ \text{Disk NPZ Archive} \\ \text{SQLite Metadata} \end{cases} \xrightarrow{\text{Hot-Reload}} \text{Instant Recognition}$$
+
+* **Quality-Gated Biometric Onboarding**: Validates visual sharpness, lighting, contrast, and alignment via Face Quality Assessment before template insertion (rejects poor frames with HTTP 422).
+* **Single Synchronization Lock**: Enforces atomic consistency across in-memory `IdentityGallery`, disk archive (`arcface_gallery.npz`), and SQLite table (`enrolled_identities`).
+* **Dynamic Identity REST APIs (`/api/v1/identities/`)**:
+  - `GET /api/v1/identities`: Lists all enrolled personnel with template counts.
+  - `GET /api/v1/identities/<name>`: Retrieves identity metadata and attendance history.
+  - `POST /api/v1/identities/enroll`: Quality-gated multi-template enrollment.
+  - `DELETE /api/v1/identities/<name>`: Removes identity from live gallery, disk archive, and database.
+
+---
+
+## 12. Setup & Execution Commands
 
 ### 1. Start Flask Web Application & REST API
 ```bash
@@ -297,7 +319,7 @@ python app.py
 ```
 Access the application in your browser at `http://127.0.0.1:5000/`.
 
-### 2. Run Complete PyTest Suite (149 tests)
+### 2. Run Complete PyTest Suite (157 tests)
 ```bash
 pytest -v
 ```

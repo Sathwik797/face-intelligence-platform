@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 from app.schemas.attendance import AttendanceRecord, SessionAuditEntry, AttendanceDailySummary
+from app.schemas.identities import EnrolledIdentityInfo
 
 
 class BaseAttendanceRepository(ABC):
     """
-    Abstract interface for attendance and session audit persistence.
+    Abstract interface for attendance, session audit, and enrolled identity metadata persistence.
     Enforces atomic operations and deterministic record retrieval.
     """
 
@@ -45,6 +46,26 @@ class BaseAttendanceRepository(ABC):
     @abstractmethod
     def get_daily_summary(self, date_str: str) -> AttendanceDailySummary:
         """Computes statistical attendance summary for a target date."""
+        pass
+
+    @abstractmethod
+    def upsert_enrolled_identity(self, info: EnrolledIdentityInfo) -> EnrolledIdentityInfo:
+        """Inserts or updates metadata for an enrolled identity."""
+        pass
+
+    @abstractmethod
+    def get_enrolled_identity(self, identity: str) -> Optional[EnrolledIdentityInfo]:
+        """Retrieves metadata for an enrolled identity."""
+        pass
+
+    @abstractmethod
+    def list_enrolled_identities(self) -> List[EnrolledIdentityInfo]:
+        """Lists all enrolled identities."""
+        pass
+
+    @abstractmethod
+    def delete_enrolled_identity(self, identity: str) -> bool:
+        """Deletes metadata for an enrolled identity."""
         pass
 
     @abstractmethod

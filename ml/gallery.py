@@ -46,6 +46,10 @@ class IdentityGallery:
     def embedding_dim(self) -> int:
         return self.embeddings.shape[1] if self.embeddings.ndim == 2 and self.embeddings.shape[0] > 0 else 512
 
+    def get_identity_template_count(self, identity: str) -> int:
+        """Returns the number of enrolled templates for the specified identity."""
+        return sum(1 for ident in self.identities if ident == identity)
+
     def add_templates(
         self,
         identity: str,
@@ -79,6 +83,27 @@ class IdentityGallery:
             if "sources" not in self.metadata:
                 self.metadata["sources"] = []
             self.metadata["sources"].extend(source_paths)
+
+    def remove_identity(self, identity: str) -> int:
+        """
+        Removes all templates associated with an identity.
+        Returns the number of templates removed.
+        """
+        indices_to_keep = [i for i, ident in enumerate(self.identities) if ident != identity]
+        removed_count = len(self.identities) - len(indices_to_keep)
+        if removed_count == 0:
+            return 0
+
+        if len(indices_to_keep) == 0:
+            self.embeddings = np.empty((0, self.embedding_dim), dtype=np.float32)
+            self.identities = []
+        else:
+            self.embeddings = self.embeddings[indices_to_keep]
+            self.identities = [self.identities[i] for i in indices_to_keep]
+
+        self.metadata["template_count"] = len(self.identities)
+        self.metadata["unique_identities"] = len(set(self.identities))
+        return removed_count
 
     def search(
         self,
