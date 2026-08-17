@@ -13,6 +13,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > - Phase 10 established the in-memory **Presence & Session Intelligence** state machine to manage presence lifecycles and clean session boundaries.
 > - Phase 11 established the **System Integration & Runtime Orchestration** subsystem composing all intelligence layers into an end-to-end fault-tolerant processing engine.
 > - Phase 12 established the **Application API & Service Boundary Layer** exposing runtime lifecycle, frame processing, and presence queries via clean RESTful APIs.
+> - Phase 13 established the **Web Application Integration & Dashboard** providing a real-time, responsive interface for webcam streaming, bounding box visualization, and operational telemetry.
 
 ---
 
@@ -106,7 +107,7 @@ face_recognition_attendence_system/
 │   ├── run_runtime_orchestrator.py        # Runtime orchestrator demonstration & benchmark
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (128 tests)
+├── tests/                    # PyTest test suite (134 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -121,10 +122,23 @@ face_recognition_attendence_system/
 │   ├── test_presence.py      # Presence state machine & session lifecycle tests
 │   ├── test_runtime.py       # End-to-end runtime orchestration tests
 │   ├── test_api_v2.py        # Phase 12 REST API & runtime service tests
+│   ├── test_dashboard_routes.py # Phase 13 Web dashboard & asset tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API legacy integration tests
 ├── templates/                # Frontend HTML views
-├── static/                   # Frontend CSS
+│   └── index.html            # Real-time face intelligence dashboard view
+├── static/                   # Frontend assets
+│   ├── css/                  # Modern modular CSS design system
+│   │   ├── variables.css     # Design tokens & color palettes
+│   │   ├── layout.css        # Responsive CSS Grid & Flexbox containers
+│   │   ├── components.css    # Cards, badges, buttons, tables, video stage
+│   │   └── dashboard.css     # Stylesheet bundle entrypoint
+│   └── js/                   # Modular ES6 JavaScript architecture
+│       ├── api.js            # REST API client wrapper
+│       ├── camera.js         # HTML5 MediaDevices webcam capture manager
+│       ├── overlay.js        # Canvas bounding box and face label renderer
+│       ├── state.js          # Reactive dashboard state store
+│       └── app.js            # Main dashboard controller & frame loop
 ├── requirements.txt          # Python dependencies
 ├── app.py                    # Application entrypoint
 └── README.md                 # Documentation
@@ -241,7 +255,16 @@ $$\text{HTTP Client} \xrightarrow{\text{Base64 Frame}} \text{Flask API Blueprint
 
 ---
 
-## 9. Setup & Execution Commands
+## 9. Web Application Integration & Dashboard (Phase 13)
+
+* **Modern SaaS Dashboard**: Replaced legacy minimal view with a responsive, dark-themed real-time dashboard (`templates/index.html`).
+* **Live Camera & Visual Overlay**: Browser-native `navigator.mediaDevices.getUserMedia` with off-screen canvas extraction and high-DPI bounding box rendering.
+* **Flight-Controlled Capture**: Throttles frame capture loop (~10 FPS) to prevent client-side network congestion.
+* **Real-Time Operational Telemetry**: Visualizes stage latencies, effective FPS, recognition similarity vs $\tau = 0.2400$, temporal consensus states, and presence session lifecycles.
+
+---
+
+## 10. Setup & Execution Commands
 
 ### 1. Start Flask Web Application & REST API
 ```bash
@@ -249,7 +272,7 @@ python app.py
 ```
 Access the application in your browser at `http://127.0.0.1:5000/`.
 
-### 2. Run Complete PyTest Suite (128 tests)
+### 2. Run Complete PyTest Suite (134 tests)
 ```bash
 pytest -v
 ```

@@ -1,52 +1,204 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Face Recognition Attendance</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition — Face Intelligence Platform Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
 <body>
-    <h1>Real-Time Face Recognition Attendance</h1>
+    <div class="dashboard-container">
+        <!-- Global Header -->
+        <header class="dashboard-header">
+            <div class="brand-section">
+                <h1 class="brand-title">Face Intelligence Platform</h1>
+                <span class="brand-badge">E2 ArcFace + Presence</span>
+            </div>
 
-    <video id="video" width="640" height="480" autoplay></video>
-    <br>
-    <button onclick="captureImage()">Capture & Recognize</button>
-    <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+            <div class="header-status-group">
+                <div class="kv-item" style="padding: 4px 10px;">
+                    <div class="kv-label">Runtime Status</div>
+                    <div id="badge-runtime-status" class="badge badge-neutral">STOPPED</div>
+                </div>
+                <div class="kv-item" style="padding: 4px 10px;">
+                    <div class="kv-label">Client FPS</div>
+                    <div id="stat-fps" class="kv-value" style="font-size: 13px;">0 FPS</div>
+                </div>
+                <div class="kv-item" style="padding: 4px 10px;">
+                    <div class="kv-label">Client RTT</div>
+                    <div id="stat-rtt" class="kv-value" style="font-size: 13px;">0 ms</div>
+                </div>
+                <div class="kv-item" style="padding: 4px 10px;">
+                    <div class="kv-label">Frames</div>
+                    <div id="stat-frames" class="kv-value" style="font-size: 13px;">0</div>
+                </div>
+            </div>
 
-    <script>
-        // Access the webcam
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(function (stream) {
-                document.getElementById("video").srcObject = stream;
-            })
-            .catch(function (error) {
-                console.log("Error accessing webcam: " + error);
-            });
+            <div class="header-actions">
+                <button id="btn-start" class="btn btn-primary">Start Camera</button>
+                <button id="btn-stop" class="btn btn-danger" disabled>Stop Camera</button>
+                <button id="btn-reset" class="btn btn-secondary">Reset</button>
+            </div>
+        </header>
 
-        function captureImage() {
-            var canvas = document.getElementById("canvas");
-            var video = document.getElementById("video");
-            var context = canvas.getContext("2d");
+        <!-- Dynamic Status Banner -->
+        <div id="banner-error" class="status-banner error" style="display: none;">
+            <span id="banner-error-msg">Backend service is unreachable.</span>
+        </div>
 
-            // Draw the video frame onto the canvas
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-main-grid">
+            <!-- Left Column: Camera Stage & Latencies -->
+            <div class="camera-column">
+                <div id="camera-stage" class="camera-stage">
+                    <video id="camera-video" class="camera-video" autoplay playsinline muted style="display: none;"></video>
+                    <canvas id="camera-overlay" class="camera-overlay"></canvas>
+                    <div id="camera-placeholder" class="camera-placeholder">
+                        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                        <div>Camera Offline</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Click "Start Camera" to initialize the stream.</div>
+                    </div>
+                </div>
 
-            // Convert to base64 image format
-            var imageData = canvas.toDataURL("image/png");
+                <!-- Stage Latencies Telemetry Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Stage Execution Telemetry</span>
+                    </div>
+                    <div class="kv-grid">
+                        <div class="kv-item">
+                            <div class="kv-label">Recognition</div>
+                            <div id="lat-rec" class="kv-value">0.0 ms</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Temporal</div>
+                            <div id="lat-temp" class="kv-value">0.0 ms</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Presence</div>
+                            <div id="lat-pres" class="kv-value">0.0 ms</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Total Latency</div>
+                            <div id="lat-total" class="kv-value" style="color: var(--primary);">0.0 ms</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            // Send image data to Flask backend
-            fetch("/recognize", {
-                method: "POST",
-                body: JSON.stringify({ image: imageData }),
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert("Recognized Faces: " + data.recognized.join(", "));
-            })
-            .catch(error => console.error("Error:", error));
-        }
-    </script>
+            <!-- Right Column: Intelligence Cards -->
+            <div class="intelligence-column">
+                <!-- 1. Recognition Intelligence -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Recognition Intelligence</span>
+                        <span id="rec-decision" class="badge badge-neutral">STANDBY</span>
+                    </div>
+                    <div class="kv-grid">
+                        <div class="kv-item" style="grid-column: span 2;">
+                            <div class="kv-label">Detected Identity</div>
+                            <div id="rec-identity" class="kv-value" style="font-size: 18px;">--</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Cosine Similarity</div>
+                            <div id="rec-similarity" class="kv-value">--</div>
+                            <div class="progress-bar-container">
+                                <div id="rec-similarity-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Production Threshold</div>
+                            <div id="rec-threshold" class="kv-value">0.2400</div>
+                        </div>
+                        <div class="kv-item" style="grid-column: span 2;">
+                            <div class="kv-label">Face Quality Status</div>
+                            <div id="rec-quality-status" class="kv-value" style="font-size: 13px;">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Temporal Identity Stability -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Temporal Identity Stability</span>
+                        <span id="temp-state" class="badge badge-neutral">STANDBY</span>
+                    </div>
+                    <div class="kv-grid">
+                        <div class="kv-item">
+                            <div class="kv-label">Stable Identity</div>
+                            <div id="temp-identity" class="kv-value">--</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Confidence</div>
+                            <div id="temp-confidence" class="kv-value">--</div>
+                        </div>
+                        <div class="kv-item" style="grid-column: span 2;">
+                            <div class="kv-label">Window Observations</div>
+                            <div id="temp-obs-count" class="kv-value" style="font-size: 13px;">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Presence & Session Intelligence -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Presence & Session Intelligence</span>
+                        <span id="pres-state" class="badge badge-neutral">NOT_PRESENT</span>
+                    </div>
+                    <div class="kv-grid">
+                        <div class="kv-item">
+                            <div class="kv-label">Active Person</div>
+                            <div id="pres-identity" class="kv-value">--</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Session ID</div>
+                            <div id="pres-session-id" class="kv-value" style="font-size: 13px;">--</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Duration</div>
+                            <div id="pres-duration" class="kv-value">--</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Interruptions</div>
+                            <div id="pres-interruptions" class="kv-value">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Grid: Activity Stream Table -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Live Event & Session Activity Stream</span>
+            </div>
+            <div class="activity-table-wrapper">
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Identity</th>
+                            <th>Event Type</th>
+                            <th>Transition</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activity-table-body">
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted);">No presence events recorded yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/overlay.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/state.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
