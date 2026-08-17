@@ -28,7 +28,7 @@ dataset/
 !data/metadata/
 !data/metadata/**
 
-# Preserve Evaluation, Calibration, Quality, Temporal & Presence Reports/Plots for Portfolio Evidence
+# Preserve Evaluation, Calibration, Quality, Temporal, Presence & Runtime Reports/Plots for Portfolio Evidence
 !reports/
 !reports/evaluation/
 !reports/evaluation/plots/
@@ -60,6 +60,10 @@ dataset/
 !reports/presence/README.md
 !reports/presence/presence_analysis_summary.json
 
+!reports/runtime/
+!reports/runtime/README.md
+!reports/runtime/runtime_analysis_summary.json
+
 # Large Model Weights and Binaries (>100MB / ONNX / Pickle / NPZ)
 ml/models/*.onnx
 *.onnx
@@ -67,7 +71,7 @@ trained_model/*.pkl
 *.pkl
 *.npz
 
-# Exclude Evaluation, Calibration, Quality, Temporal & Presence Caches & Raw Pair CSVs
+# Exclude Evaluation, Calibration, Quality, Temporal, Presence & Runtime Caches & Raw Pair CSVs
 reports/evaluation/cache/
 reports/evaluation/cache/**
 reports/evaluation/pair_results_*.csv
@@ -88,6 +92,10 @@ reports/temporal/*.csv
 reports/presence/cache/
 reports/presence/cache/**
 reports/presence/*.csv
+
+reports/runtime/cache/
+reports/runtime/cache/**
+reports/runtime/*.csv
 
 # Runtime output logs & CSVs
 attendance.csv

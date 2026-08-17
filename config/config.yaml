@@ -70,6 +70,13 @@ presence:
   grace_period_seconds: 10.0
   max_session_duration_seconds: 28800.0  # 8 hours safeguard
 
+runtime:
+  # Phase 11 System Integration & Runtime Orchestration
+  enabled: true
+  heartbeat_interval_seconds: 1.0
+  auto_tick: true
+  max_buffered_history: 100
+
 recognition:
   # Validation-derived production cosine similarity threshold from Phase 7
   similarity_threshold: 0.24

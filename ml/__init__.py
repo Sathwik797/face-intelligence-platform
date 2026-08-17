@@ -25,6 +25,17 @@ from ml.presence import (
     IdentityPresenceStateMachine,
     PRESENCE_PRESETS
 )
+from ml.runtime import (
+    RuntimeStatus,
+    RuntimeConfig,
+    StageLatencyMetrics,
+    RuntimeFrameResult,
+    BaseFrameSource,
+    StaticFrameSource,
+    SyntheticFrameSource,
+    OpenCVFrameSource,
+    FaceIntelligenceRuntime
+)
 from ml.pipeline import (
     FaceRecognitionPipeline,
     RecognitionResult,
@@ -64,6 +75,15 @@ __all__ = [
     "PresenceSession",
     "IdentityPresenceStateMachine",
     "PRESENCE_PRESETS",
+    "RuntimeStatus",
+    "RuntimeConfig",
+    "StageLatencyMetrics",
+    "RuntimeFrameResult",
+    "BaseFrameSource",
+    "StaticFrameSource",
+    "SyntheticFrameSource",
+    "OpenCVFrameSource",
+    "FaceIntelligenceRuntime",
     "FaceRecognitionPipeline",
     "RecognitionResult",
     "ModernRecognitionPipeline",

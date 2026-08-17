@@ -11,6 +11,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > - Phase 8 established the **Face Quality Assessment (FQA)** subsystem, evaluating visual and geometric quality signals before feature extraction.
 > - Phase 9 established the **Temporal Identity Stabilization** layer to aggregate multi-frame evidence, suppress identity flicker, and absorb transient dropouts.
 > - Phase 10 established the in-memory **Presence & Session Intelligence** state machine to manage presence lifecycles and clean session boundaries.
+> - Phase 11 established the **System Integration & Runtime Orchestration** subsystem composing all intelligence layers into an end-to-end fault-tolerant processing engine.
 
 ---
 
@@ -42,6 +43,11 @@ face_recognition_attendence_system/
 │   │   ├── schemas.py        # PresenceState, PresenceSession, PresenceEvent, PresenceConfig
 │   │   ├── state_machine.py  # IdentityPresenceStateMachine (State machine lifecycle)
 │   │   └── manager.py        # PresenceManager (Multi-identity orchestrator)
+│   ├── runtime/              # System Integration & Runtime Orchestration subsystem
+│   │   ├── __init__.py       # Runtime package exports
+│   │   ├── schemas.py        # RuntimeStatus, RuntimeConfig, StageLatencyMetrics, RuntimeFrameResult
+│   │   ├── frame_source.py   # BaseFrameSource, StaticFrameSource, SyntheticFrameSource, OpenCVFrameSource
+│   │   └── orchestrator.py   # FaceIntelligenceRuntime (Lifecycle, stage execution & telemetry)
 │   ├── pipeline.py           # Baseline (E1) & Modern (E2) Recognition Pipelines
 │   ├── evaluation/           # Verification & threshold calibration framework
 │   │   ├── __init__.py       # Exports
@@ -51,7 +57,7 @@ face_recognition_attendence_system/
 │   └── models/               # Downloaded ONNX model weights (YuNet, ArcFace)
 ├── config/
 │   ├── __init__.py           # Config loader
-│   └── config.yaml           # System paths, model parameters, quality, temporal, presence, and thresholds
+│   └── config.yaml           # System paths, model parameters, quality, temporal, presence, runtime, thresholds
 ├── data/                     # Dataset storage (Gitignored raw/eval images & galleries)
 │   ├── raw/lfw/              # Full downloaded LFW dataset (5,760 identities)
 │   ├── evaluation/           # Partitioned evaluation images
@@ -69,10 +75,10 @@ face_recognition_attendence_system/
 │   ├── calibration/          # Production threshold calibration summary JSON & plots
 │   ├── quality/              # Face quality analysis summary JSON & plots
 │   ├── temporal/             # Temporal stability analysis summary JSON & plots
-│   └── presence/             # Presence & session state policy analysis JSON & plots
-│       ├── README.md         # Presence state machine documentation & lifecycle rules
-│       ├── presence_analysis_summary.json # Machine-readable continuity & recovery metrics
-│       └── plots/            # State transitions, session lifecycles, and trade-off comparisons
+│   ├── presence/             # Presence & session state policy analysis JSON & plots
+│   └── runtime/              # Runtime orchestration summary JSON & documentation
+│       ├── README.md         # Runtime architecture, lifecycle, and telemetry documentation
+│       └── runtime_analysis_summary.json # Machine-readable runtime execution & latency statistics
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -85,9 +91,10 @@ face_recognition_attendence_system/
 │   ├── evaluate_face_quality.py           # Validation face quality assessment & experiment
 │   ├── evaluate_temporal_stability.py     # Validation temporal identity stability evaluation
 │   ├── evaluate_presence_session.py       # Controlled presence & session policy evaluation
+│   ├── run_runtime_orchestrator.py        # Runtime orchestrator demonstration & benchmark
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (100 tests)
+├── tests/                    # PyTest test suite (111 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -100,6 +107,7 @@ face_recognition_attendence_system/
 │   ├── test_quality.py       # Face Quality Assessment & metric unit tests
 │   ├── test_temporal.py      # Temporal stabilization & state machine tests
 │   ├── test_presence.py      # Presence state machine & session lifecycle tests
+│   ├── test_runtime.py       # End-to-end runtime orchestration tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API integration tests
 ├── templates/                # Frontend HTML views
@@ -153,7 +161,7 @@ Conducted strictly on the **independent validation split** (59 identities, 1,395
 |---|---|---|---|---|
 | **Baseline (No FQA)** | $0.00\%$ ($0 / 19,900$) | **$98.50\%$** | $0.070\%$ ($0.000700$) | $2.94\%$ ($0.02939$) |
 | **Lenient FQA** | $0.68\%$ ($136 / 19,900$) | **$98.56\%$** | $0.071\%$ ($0.000707$) | $2.82\%$ ($0.02820$) |
-| **Balanced FQA (Default)** | $\mathbf{8.72\%}$ ($1,736 / 19,900$) | **$98.61\%$** | $\mathbf{0.077\%}$ ($0.000771$) | $\mathbf{2.71\%}$ ($0.02709$) |
+| **Balanced FQA (Default)** | $\mathbf{8.72\%}$ ($1,736 / 19,900$) | **$98.61\%$$ | $\mathbf{0.077\%}$ ($0.000771$) | $\mathbf{2.71\%}$ ($0.02709$) |
 | **Strict FQA** | $40.34\%$ ($8,028 / 19,900$) | **$99.26\%$** | $0.085\%$ ($0.000855$) | $1.38\%$ ($0.01378$) |
 
 * Full quality plots, percentile distributions, and correlation matrices are documented in [`reports/quality/`](./reports/quality/README.md).
@@ -187,48 +195,59 @@ Evaluated across 8 operational scenarios (400 event sequences):
 | **BALANCED Mode (Default)** | $\mathbf{3}$ | $\mathbf{5.0}$ | $\mathbf{10.0}$ | **$1.00$** (3 frames at 0.5s interval) | **$100.0\%$** | **$100.0\%$** | **$0.0\%$** |
 | **STRICT Mode** | $5$ | $8.0$ | $20.0$ | **$2.00$** (5 frames at 0.5s interval) | **$100.0\%$** | **$100.0\%$** | **$0.0\%$** |
 
-* **Interpretation of Experimental Evidence**:
-  - Under the controlled synthetic event scenarios evaluated in Phase 10, the presence state machine achieved 100% session continuity and 100% recovery for interruptions within the configured grace period.
-  - Reported entry timing values represent controlled synthetic observation/event timing with simulated 0.5s observation intervals, not measured camera or hardware latency.
-  - The `max_session_duration_seconds: 28800.0` parameter is implemented purely as a configurable safety safeguard against indefinitely open sessions in orphaned camera streams; it is not a fixed universal attendance or workday business rule.
-  - These results validate deterministic state-machine behavior under the tested scenarios; they do not establish real-world camera-stream presence accuracy.
 * Full presence state machine documentation and lifecycle plots are in [`reports/presence/`](./reports/presence/README.md).
 
 ---
 
-## 7. Setup & Execution Commands
+## 7. System Integration & Runtime Orchestration (Phase 11)
 
-### 1. Run Presence & Session Intelligence Evaluation
+$$\text{BaseFrameSource} \xrightarrow{\text{RGB Frame}} \text{ModernRecognitionPipeline} \xrightarrow{\text{ModernRecognitionResult}} \text{RecognitionObservation} \xrightarrow{\text{TemporalIdentityStabilizer}} \text{TemporalRecognitionResult} \xrightarrow{\text{PresenceManager}} \text{RuntimeFrameResult}$$
+
+* **Modular Orchestration (`FaceIntelligenceRuntime`)**: Cleanly composes detection, FQA, ArcFace embeddings, temporal voting, and presence tracking with full dependency injection.
+* **Fault-Tolerant Execution**: Frame anomalies (corrupt images, quality rejections, missing landmarks) are captured gracefully as structured `RuntimeFrameResult` outputs without halting the processing loop.
+* **Explicit Lifecycle Control**: Supports deterministic `start()`, `process_frame()`, `tick()`, `stop(reason="runtime_shutdown")`, and `reset()`.
+* Full runtime documentation is in [`reports/runtime/`](./reports/runtime/README.md).
+
+---
+
+## 8. Setup & Execution Commands
+
+### 1. Run Runtime Orchestration Demonstration
+```bash
+python scripts/run_runtime_orchestrator.py
+```
+
+### 2. Run Presence & Session Intelligence Evaluation
 ```bash
 python scripts/evaluate_presence_session.py
 ```
 
-### 2. Run Temporal Identity Stability Evaluation
+### 3. Run Temporal Identity Stability Evaluation
 ```bash
 python scripts/evaluate_temporal_stability.py
 ```
 
-### 3. Run Face Quality Assessment Evaluation
+### 4. Run Face Quality Assessment Evaluation
 ```bash
 python scripts/evaluate_face_quality.py
 ```
 
-### 4. Run Production Threshold Calibration
+### 5. Run Production Threshold Calibration
 ```bash
 python scripts/calibrate_threshold.py
 ```
 
-### 5. Run 10-Fold LFW Face Verification Benchmark
+### 6. Run 10-Fold LFW Face Verification Benchmark
 ```bash
 python scripts/evaluate_verification.py
 ```
 
-### 6. Run Complete PyTest Suite (100 tests)
+### 7. Run Complete PyTest Suite (111 tests)
 ```bash
 pytest -v
 ```
 
-### 7. Start Flask Web Application
+### 8. Start Flask Web Application
 ```bash
 python app.py
 ```
