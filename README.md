@@ -16,6 +16,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > - Phase 13 established the **Web Application Integration & Dashboard** providing a real-time, responsive interface for webcam streaming, bounding box visualization, and operational telemetry.
 > - Phase 14 established the **Attendance Business Engine & Persistence Repository** mapping continuous presence sessions into idempotent daily records with thread-safe SQLite persistence and export APIs.
 > - Phase 15 established the **Dynamic Identity Enrollment & Gallery Management Subsystem** providing quality-gated multi-template biometric enrollment and atomic gallery synchronization.
+> - Phase 16 established the **Comprehensive Self-Service Dashboard Suite** with animated tab navigation, interactive historical attendance journals, CSV exports, identity rosters, and webcam enrollment modals.
 
 ---
 
@@ -107,9 +108,12 @@ face_recognition_attendence_system/
 │   ├── attendance/           # Attendance persistence summary JSON & documentation
 │   │   ├── README.md         # Attendance schema, business rules & repository architecture
 │   │   └── attendance_analysis_summary.json # Machine-readable attendance system summary
-│   └── enrollment/           # Identity enrollment summary JSON & documentation
-│       ├── README.md         # Quality-gated enrollment & gallery architecture
-│       └── enrollment_analysis_summary.json # Machine-readable enrollment system summary
+│   ├── enrollment/           # Identity enrollment summary JSON & documentation
+│   │   ├── README.md         # Quality-gated enrollment & gallery architecture
+│   │   └── enrollment_analysis_summary.json # Machine-readable enrollment system summary
+│   └── dashboard_v2/         # Self-service dashboard documentation & UI architecture
+│       ├── README.md         # Navigation tabs, attendance views & enrollment modals
+│       └── dashboard_v2_analysis_summary.json # Machine-readable UI system summary
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -125,7 +129,7 @@ face_recognition_attendence_system/
 │   ├── run_runtime_orchestrator.py        # Runtime orchestrator demonstration & benchmark
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (157 tests)
+├── tests/                    # PyTest test suite (162 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -143,6 +147,7 @@ face_recognition_attendence_system/
 │   ├── test_dashboard_routes.py # Phase 13 Web dashboard & asset tests
 │   ├── test_attendance.py    # Phase 14 AttendanceEngine & SQLite persistence tests
 │   ├── test_enrollment.py    # Phase 15 Dynamic Enrollment & Gallery Management tests
+│   ├── test_dashboard_v2.py  # Phase 16 Self-Service Dashboard Suite tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API legacy integration tests
 ├── templates/                # Frontend HTML views
@@ -151,14 +156,16 @@ face_recognition_attendence_system/
 │   ├── css/                  # Modern modular CSS design system
 │   │   ├── variables.css     # Design tokens & color palettes
 │   │   ├── layout.css        # Responsive CSS Grid & Flexbox containers
-│   │   ├── components.css    # Cards, badges, buttons, tables, video stage
+│   │   ├── components.css    # Cards, badges, buttons, tables, video stage, tabs & modals
 │   │   └── dashboard.css     # Stylesheet bundle entrypoint
 │   └── js/                   # Modular ES6 JavaScript architecture
 │       ├── api.js            # REST API client wrapper
 │       ├── camera.js         # HTML5 MediaDevices webcam capture manager
 │       ├── overlay.js        # Canvas bounding box and face label renderer
 │       ├── state.js          # Reactive dashboard state store
-│       └── app.js            # Main dashboard controller & frame loop
+│       ├── attendance_view.js# Attendance journal rendering & date filtering
+│       ├── identities_view.js# Identity directory roster & live enrollment modal
+│       └── app.js            # Master dashboard controller, tab switcher & frame loop
 ├── requirements.txt          # Python dependencies
 ├── app.py                    # Application entrypoint
 └── README.md                 # Documentation
@@ -311,7 +318,15 @@ $$\text{Enrollment Frame} \xrightarrow{\text{YuNet \& Landmarks}} \text{Phase 8 
 
 ---
 
-## 12. Setup & Execution Commands
+## 12. Comprehensive Self-Service Dashboard Suite (Phase 16)
+
+* **Multi-View Tabbed UI**: Interactive header navigation switching seamlessly between **Live Stream Stage**, **Attendance Journal**, and **Identity Directory**.
+* **Interactive Attendance Journal**: Calendar date picker, live metric cards (Total Present, In-Progress, Mean Dwell Time), interactive logs, and one-click direct CSV/JSON export.
+* **Identity Management & Live Enrollment Modal**: Enrolled biometric roster management with live webcam snapshot capture, file upload, and real-time Face Quality Assessment (FQA) feedback.
+
+---
+
+## 13. Setup & Execution Commands
 
 ### 1. Start Flask Web Application & REST API
 ```bash
@@ -319,7 +334,7 @@ python app.py
 ```
 Access the application in your browser at `http://127.0.0.1:5000/`.
 
-### 2. Run Complete PyTest Suite (157 tests)
+### 2. Run Complete PyTest Suite (162 tests)
 ```bash
 pytest -v
 ```

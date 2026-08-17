@@ -1,11 +1,13 @@
 /**
  * Main Dashboard Application Controller.
- * Orchestrates camera streaming, frame capture loop, API communication, and UI rendering.
+ * Orchestrates camera streaming, frame capture loop, API communication, tab switching, and UI rendering.
  */
+
 document.addEventListener('DOMContentLoaded', () => {
   const api = window.apiClient;
   const state = window.dashboardState;
   const camera = new window.CameraManager(640, 480);
+  window.cameraManager = camera;
 
   // DOM Elements
   const videoElem = document.getElementById('camera-video');
@@ -20,6 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const bannerError = document.getElementById('banner-error');
   const bannerErrorMsg = document.getElementById('banner-error-msg');
 
+  // Tab Navigation Elements
+  const tabBtnLive = document.getElementById('tab-btn-live');
+  const tabBtnAttendance = document.getElementById('tab-btn-attendance');
+  const tabBtnIdentities = document.getElementById('tab-btn-identities');
+
+  const viewLive = document.getElementById('view-live');
+  const viewAttendance = document.getElementById('view-attendance');
+  const viewIdentities = document.getElementById('view-identities');
+
   const overlay = new window.OverlayRenderer(overlayCanvas);
 
   // Loop & FPS tracking
@@ -27,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let presenceActiveIntervalId = null;
   let presenceHistoryIntervalId = null;
 
-  let lastFrameTime = performance.now();
   let frameCountForFps = 0;
   let fpsTimer = performance.now();
 
@@ -36,9 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     state.subscribe(renderUI);
 
+    // Initialize submodule controllers
+    if (window.attendanceView) window.attendanceView.init();
+    if (window.identitiesView) window.identitiesView.init();
+
     try {
-      const health = await api.health();
-      const status = await api.runtimeStatus();
+      const health = await api.checkHealth();
+      const status = await api.getRuntimeStatus();
       state.update({
         health,
         runtimeStatus: status.status,
@@ -53,14 +67,36 @@ document.addEventListener('DOMContentLoaded', () => {
     startPresencePolling();
   }
 
-  // 2. Event Listeners
+  // 2. Event Listeners & Tab Switching
+  function switchTab(activeTab) {
+    [tabBtnLive, tabBtnAttendance, tabBtnIdentities].forEach(b => b?.classList.remove('active'));
+    [viewLive, viewAttendance, viewIdentities].forEach(v => { if (v) v.style.display = 'none'; });
+
+    if (activeTab === 'live') {
+      tabBtnLive?.classList.add('active');
+      if (viewLive) viewLive.style.display = 'block';
+    } else if (activeTab === 'attendance') {
+      tabBtnAttendance?.classList.add('active');
+      if (viewAttendance) viewAttendance.style.display = 'block';
+      if (window.attendanceView) window.attendanceView.loadData();
+    } else if (activeTab === 'identities') {
+      tabBtnIdentities?.classList.add('active');
+      if (viewIdentities) viewIdentities.style.display = 'block';
+      if (window.identitiesView) window.identitiesView.loadData();
+    }
+  }
+
   function bindEvents() {
-    btnStart.addEventListener('click', startStreaming);
-    btnStop.addEventListener('click', stopStreaming);
-    btnReset.addEventListener('click', resetState);
+    if (tabBtnLive) tabBtnLive.addEventListener('click', () => switchTab('live'));
+    if (tabBtnAttendance) tabBtnAttendance.addEventListener('click', () => switchTab('attendance'));
+    if (tabBtnIdentities) tabBtnIdentities.addEventListener('click', () => switchTab('identities'));
+
+    if (btnStart) btnStart.addEventListener('click', startStreaming);
+    if (btnStop) btnStop.addEventListener('click', stopStreaming);
+    if (btnReset) btnReset.addEventListener('click', resetState);
 
     window.addEventListener('resize', () => {
-      if (camera.isActive) {
+      if (camera.isActive && cameraStage) {
         overlay.resize(cameraStage.getBoundingClientRect());
       }
     });
@@ -70,9 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function startStreaming() {
     try {
       state.clearError();
-      btnStart.disabled = true;
+      if (btnStart) btnStart.disabled = true;
 
-      await api.runtimeStart();
+      await api.startRuntime();
       await camera.start(videoElem);
 
       state.update({
@@ -80,15 +116,15 @@ document.addEventListener('DOMContentLoaded', () => {
         runtimeStatus: 'RUNNING'
       });
 
-      placeholder.style.display = 'none';
-      videoElem.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'none';
+      if (videoElem) videoElem.style.display = 'block';
 
       // Start frame capture loop (~10 FPS / 100ms interval)
       startFrameLoop(100);
     } catch (err) {
       camera.stop();
       state.setError(`Camera or runtime start failed: ${err.message}`);
-      btnStart.disabled = false;
+      if (btnStart) btnStart.disabled = false;
     }
   }
 
@@ -98,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     overlay.clear();
 
     try {
-      await api.runtimeStop('user_stopped');
+      await api.stopRuntime();
     } catch (err) {
       console.warn('Error during runtime stop:', err);
     }
@@ -108,13 +144,13 @@ document.addEventListener('DOMContentLoaded', () => {
       runtimeStatus: 'STOPPED'
     });
 
-    placeholder.style.display = 'flex';
-    videoElem.style.display = 'none';
+    if (placeholder) placeholder.style.display = 'flex';
+    if (videoElem) videoElem.style.display = 'none';
   }
 
   async function resetState() {
     try {
-      await api.runtimeReset();
+      await api.resetRuntime();
       overlay.clear();
       state.update({
         latestResult: null,
@@ -185,9 +221,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Render face bounding box overlay
-        const displayRect = cameraStage.getBoundingClientRect();
-        const srcDims = camera.getDimensions();
-        overlay.render(result.recognition, result.temporal, srcDims, displayRect);
+        if (cameraStage) {
+          const displayRect = cameraStage.getBoundingClientRect();
+          const srcDims = camera.getDimensions();
+          overlay.render(result.recognition, result.temporal, srcDims, displayRect);
+        }
 
       } catch (err) {
         console.warn('Frame processing dropped:', err.message);
@@ -208,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function startPresencePolling() {
     presenceActiveIntervalId = setInterval(async () => {
       try {
-        const data = await api.presenceActive();
+        const data = await api.getActivePresence();
         if (data && data.sessions) {
           state.update({ activeSessions: data.sessions });
         }
@@ -219,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     presenceHistoryIntervalId = setInterval(async () => {
       try {
-        const data = await api.presenceHistory();
+        const data = await api.getPresenceHistory();
         if (data && data.sessions) {
           state.update({ historySessions: data.sessions });
         }
@@ -232,117 +270,160 @@ document.addEventListener('DOMContentLoaded', () => {
   // 6. UI Render Function
   function renderUI(s) {
     // Controls State
-    btnStart.disabled = s.isStreaming;
-    btnStop.disabled = !s.isStreaming;
+    if (btnStart) btnStart.disabled = s.isStreaming;
+    if (btnStop) btnStop.disabled = !s.isStreaming;
 
     // Status Banner
-    if (s.error) {
-      bannerError.style.display = 'flex';
-      bannerErrorMsg.textContent = s.error;
-    } else {
-      bannerError.style.display = 'none';
+    if (bannerError) {
+      if (s.error) {
+        bannerError.style.display = 'flex';
+        if (bannerErrorMsg) bannerErrorMsg.textContent = s.error;
+      } else {
+        bannerError.style.display = 'none';
+      }
     }
 
     // Header Badges
     const statusPill = document.getElementById('badge-runtime-status');
-    statusPill.textContent = s.runtimeStatus;
-    statusPill.className = `badge ${s.runtimeStatus === 'RUNNING' ? 'badge-success' : 'badge-neutral'}`;
+    if (statusPill) {
+      statusPill.textContent = s.runtimeStatus;
+      statusPill.className = `badge ${s.runtimeStatus === 'RUNNING' ? 'badge-success' : 'badge-neutral'}`;
+    }
 
-    document.getElementById('stat-fps').textContent = `${s.telemetry.fps} FPS`;
-    document.getElementById('stat-rtt').textContent = `${s.telemetry.clientRttMs} ms`;
-    document.getElementById('stat-frames').textContent = s.frameCounter;
+    const statFps = document.getElementById('stat-fps');
+    if (statFps) statFps.textContent = `${s.telemetry.fps} FPS`;
+
+    const statRtt = document.getElementById('stat-rtt');
+    if (statRtt) statRtt.textContent = `${s.telemetry.clientRttMs} ms`;
+
+    const statFrames = document.getElementById('stat-frames');
+    if (statFrames) statFrames.textContent = s.frameCounter;
 
     // Recognition Intelligence
     const rec = s.latestResult ? s.latestResult.recognition : null;
+    const recIdElem = document.getElementById('rec-identity');
+    const recDecElem = document.getElementById('rec-decision');
+    const recSimElem = document.getElementById('rec-similarity');
+    const recFillElem = document.getElementById('rec-similarity-fill');
+    const recQualElem = document.getElementById('rec-quality-status');
+
     if (rec) {
-      document.getElementById('rec-identity').textContent = rec.identity || 'Unknown';
-      document.getElementById('rec-decision').textContent = rec.recognized ? 'RECOGNIZED' : (rec.reason || 'UNCONFIRMED');
-      document.getElementById('rec-decision').className = rec.recognized ? 'badge badge-success' : 'badge badge-danger';
+      if (recIdElem) recIdElem.textContent = rec.identity || 'Unknown';
+      if (recDecElem) {
+        recDecElem.textContent = rec.recognized ? 'RECOGNIZED' : (rec.reason || 'UNCONFIRMED');
+        recDecElem.className = rec.recognized ? 'badge badge-success' : 'badge badge-danger';
+      }
 
       const simVal = rec.similarity !== null ? rec.similarity : 0;
-      document.getElementById('rec-similarity').textContent = rec.similarity >= 0 ? rec.similarity.toFixed(4) : '--';
-      document.getElementById('rec-threshold').textContent = rec.threshold ? rec.threshold.toFixed(4) : '0.2400';
+      if (recSimElem) recSimElem.textContent = rec.similarity >= 0 ? rec.similarity.toFixed(4) : '--';
 
       const pct = Math.min(100, Math.max(0, Math.round(simVal * 100)));
-      const fillElem = document.getElementById('rec-similarity-fill');
-      fillElem.style.width = `${pct}%`;
-      fillElem.style.background = rec.recognized ? 'var(--success)' : 'var(--danger)';
+      if (recFillElem) {
+        recFillElem.style.width = `${pct}%`;
+        recFillElem.style.background = rec.recognized ? 'var(--success)' : 'var(--danger)';
+      }
 
-      document.getElementById('rec-quality-status').textContent = (rec.quality_status || 'NONE').toUpperCase();
+      if (recQualElem) recQualElem.textContent = (rec.quality_status || 'NONE').toUpperCase();
     } else {
-      document.getElementById('rec-identity').textContent = '--';
-      document.getElementById('rec-decision').textContent = 'STANDBY';
-      document.getElementById('rec-decision').className = 'badge badge-neutral';
-      document.getElementById('rec-similarity').textContent = '--';
-      document.getElementById('rec-similarity-fill').style.width = '0%';
-      document.getElementById('rec-quality-status').textContent = '--';
+      if (recIdElem) recIdElem.textContent = '--';
+      if (recDecElem) {
+        recDecElem.textContent = 'STANDBY';
+        recDecElem.className = 'badge badge-neutral';
+      }
+      if (recSimElem) recSimElem.textContent = '--';
+      if (recFillElem) recFillElem.style.width = '0%';
+      if (recQualElem) recQualElem.textContent = '--';
     }
 
     // Temporal Stability
     const temp = s.latestResult ? s.latestResult.temporal : null;
+    const tempIdElem = document.getElementById('temp-identity');
+    const tempStateElem = document.getElementById('temp-state');
+    const tempConfElem = document.getElementById('temp-confidence');
+    const tempObsElem = document.getElementById('temp-obs-count');
+
     if (temp) {
-      document.getElementById('temp-identity').textContent = temp.stable_identity || '--';
-      document.getElementById('temp-state').textContent = (temp.state || 'UNKNOWN').toUpperCase();
-      document.getElementById('temp-state').className = temp.is_stable ? 'badge badge-success' : 'badge badge-warning';
-      document.getElementById('temp-confidence').textContent = `${Math.round(temp.confidence_score * 100)}%`;
-      document.getElementById('temp-obs-count').textContent = `${temp.observations_count} in window`;
+      if (tempIdElem) tempIdElem.textContent = temp.stable_identity || '--';
+      if (tempStateElem) {
+        tempStateElem.textContent = (temp.state || 'UNKNOWN').toUpperCase();
+        tempStateElem.className = temp.is_stable ? 'badge badge-success' : 'badge badge-warning';
+      }
+      if (tempConfElem) tempConfElem.textContent = `${Math.round(temp.confidence_score * 100)}%`;
+      if (tempObsElem) tempObsElem.textContent = `${temp.observations_count} in window`;
     } else {
-      document.getElementById('temp-identity').textContent = '--';
-      document.getElementById('temp-state').textContent = 'STANDBY';
-      document.getElementById('temp-state').className = 'badge badge-neutral';
-      document.getElementById('temp-confidence').textContent = '--';
-      document.getElementById('temp-obs-count').textContent = '--';
+      if (tempIdElem) tempIdElem.textContent = '--';
+      if (tempStateElem) {
+        tempStateElem.textContent = 'STANDBY';
+        tempStateElem.className = 'badge badge-neutral';
+      }
+      if (tempConfElem) tempConfElem.textContent = '--';
+      if (tempObsElem) tempObsElem.textContent = '--';
     }
 
     // Presence & Session
     const activeSessions = s.activeSessions || [];
+    const presStateElem = document.getElementById('pres-state');
+    const presIdElem = document.getElementById('pres-identity');
+    const presSessElem = document.getElementById('pres-session-id');
+    const presDurElem = document.getElementById('pres-duration');
+    const presInterElem = document.getElementById('pres-interruptions');
+
     if (activeSessions.length > 0) {
       const mainSession = activeSessions[0];
-      document.getElementById('pres-state').textContent = (mainSession.state || 'PRESENT').toUpperCase();
-      document.getElementById('pres-state').className = mainSession.state === 'PRESENT' ? 'badge badge-success' : 'badge badge-warning';
-      document.getElementById('pres-identity').textContent = mainSession.identity;
-      document.getElementById('pres-session-id').textContent = `#${mainSession.session_id.substring(0, 8)}`;
-      document.getElementById('pres-duration').textContent = `${mainSession.duration_seconds.toFixed(1)}s`;
-      document.getElementById('pres-obs').textContent = mainSession.observation_count;
-      document.getElementById('pres-interruptions').textContent = mainSession.interruption_count;
+      if (presStateElem) {
+        presStateElem.textContent = (mainSession.state || 'PRESENT').toUpperCase();
+        presStateElem.className = mainSession.state === 'PRESENT' ? 'badge badge-success' : 'badge badge-warning';
+      }
+      if (presIdElem) presIdElem.textContent = mainSession.identity;
+      if (presSessElem) presSessElem.textContent = `#${mainSession.session_id.substring(0, 8)}`;
+      if (presDurElem) presDurElem.textContent = `${mainSession.duration_seconds.toFixed(1)}s`;
+      if (presInterElem) presInterElem.textContent = mainSession.interruption_count;
     } else {
-      document.getElementById('pres-state').textContent = 'NOT_PRESENT';
-      document.getElementById('pres-state').className = 'badge badge-neutral';
-      document.getElementById('pres-identity').textContent = '--';
-      document.getElementById('pres-session-id').textContent = '--';
-      document.getElementById('pres-duration').textContent = '--';
-      document.getElementById('pres-obs').textContent = '--';
-      document.getElementById('pres-interruptions').textContent = '--';
+      if (presStateElem) {
+        presStateElem.textContent = 'NOT_PRESENT';
+        presStateElem.className = 'badge badge-neutral';
+      }
+      if (presIdElem) presIdElem.textContent = '--';
+      if (presSessElem) presSessElem.textContent = '--';
+      if (presDurElem) presDurElem.textContent = '--';
+      if (presInterElem) presInterElem.textContent = '--';
     }
 
     // Stage Latencies Telemetry
     const t = s.telemetry;
-    document.getElementById('lat-rec').textContent = `${t.recognitionMs.toFixed(1)} ms`;
-    document.getElementById('lat-temp').textContent = `${t.temporalMs.toFixed(1)} ms`;
-    document.getElementById('lat-pres').textContent = `${t.presenceMs.toFixed(1)} ms`;
-    document.getElementById('lat-total').textContent = `${t.totalMs.toFixed(1)} ms`;
+    const latRec = document.getElementById('lat-rec');
+    const latTemp = document.getElementById('lat-temp');
+    const latPres = document.getElementById('lat-pres');
+    const latTotal = document.getElementById('lat-total');
+
+    if (latRec) latRec.textContent = `${t.recognitionMs.toFixed(1)} ms`;
+    if (latTemp) latTemp.textContent = `${t.temporalMs.toFixed(1)} ms`;
+    if (latPres) latPres.textContent = `${t.presenceMs.toFixed(1)} ms`;
+    if (latTotal) latTotal.textContent = `${t.totalMs.toFixed(1)} ms`;
 
     // Activity Stream Table
     const tbody = document.getElementById('activity-table-body');
-    if (s.eventsLog && s.eventsLog.length > 0) {
-      tbody.innerHTML = s.eventsLog.slice(0, 15).map(ev => {
-        const timeStr = (ev.timestamp || '').split('T')[1]?.split('.')[0] || ev.timestamp;
-        let badgeClass = 'badge-neutral';
-        if (ev.event_type.includes('CONFIRMED')) badgeClass = 'badge-success';
-        if (ev.event_type.includes('GRACE')) badgeClass = 'badge-warning';
-        if (ev.event_type.includes('ENDED')) badgeClass = 'badge-danger';
+    if (tbody) {
+      if (s.eventsLog && s.eventsLog.length > 0) {
+        tbody.innerHTML = s.eventsLog.slice(0, 15).map(ev => {
+          const timeStr = (ev.timestamp || '').split('T')[1]?.split('.')[0] || ev.timestamp;
+          let badgeClass = 'badge-neutral';
+          if (ev.event_type.includes('CONFIRMED')) badgeClass = 'badge-success';
+          if (ev.event_type.includes('GRACE')) badgeClass = 'badge-warning';
+          if (ev.event_type.includes('ENDED')) badgeClass = 'badge-danger';
 
-        return `
-          <tr>
-            <td>${timeStr}</td>
-            <td><strong>${ev.identity || 'Unknown'}</strong></td>
-            <td><span class="badge ${badgeClass}">${ev.event_type}</span></td>
-            <td>${ev.previous_state} &rarr; ${ev.new_state}</td>
-          </tr>
-        `;
-      }).join('');
-    } else {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No presence events recorded yet.</td></tr>`;
+          return `
+            <tr>
+              <td>${timeStr}</td>
+              <td><strong>${ev.identity || 'Unknown'}</strong></td>
+              <td><span class="badge ${badgeClass}">${ev.event_type}</span></td>
+              <td>${ev.previous_state} &rarr; ${ev.new_state}</td>
+            </tr>
+          `;
+        }).join('');
+      } else {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No presence events recorded yet.</td></tr>`;
+      }
     }
   }
 

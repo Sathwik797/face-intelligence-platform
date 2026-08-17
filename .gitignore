@@ -36,7 +36,7 @@ data/*.sqlite3
 !data/metadata/
 !data/metadata/**
 
-# Preserve Evaluation, Calibration, Quality, Temporal, Presence, Runtime, Attendance & Enrollment Reports for Portfolio Evidence
+# Preserve Evaluation, Calibration, Quality, Temporal, Presence, Runtime, Attendance, Enrollment & Dashboard Reports for Portfolio Evidence
 !reports/
 !reports/evaluation/
 !reports/evaluation/plots/
@@ -80,6 +80,10 @@ data/*.sqlite3
 !reports/enrollment/README.md
 !reports/enrollment/enrollment_analysis_summary.json
 
+!reports/dashboard_v2/
+!reports/dashboard_v2/README.md
+!reports/dashboard_v2/dashboard_v2_analysis_summary.json
+
 # Large Model Weights and Binaries (>100MB / ONNX / Pickle / NPZ)
 ml/models/*.onnx
 *.onnx
@@ -120,6 +124,10 @@ reports/attendance/*.csv
 reports/enrollment/cache/
 reports/enrollment/cache/**
 reports/enrollment/*.csv
+
+reports/dashboard_v2/cache/
+reports/dashboard_v2/cache/**
+reports/dashboard_v2/*.csv
 
 # Runtime output logs & CSVs
 attendance.csv

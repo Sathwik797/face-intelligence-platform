@@ -41,155 +41,314 @@
             </div>
         </header>
 
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button id="tab-btn-live" class="tab-btn active">Live Stream & Stage</button>
+            <button id="tab-btn-attendance" class="tab-btn">Attendance Journal</button>
+            <button id="tab-btn-identities" class="tab-btn">Identity Directory</button>
+        </nav>
+
         <!-- Dynamic Status Banner -->
-        <div id="banner-error" class="status-banner error" style="display: none;">
+        <div id="banner-error" class="status-banner error" style="display: none; margin-top: 12px;">
             <span id="banner-error-msg">Backend service is unreachable.</span>
         </div>
 
-        <!-- Main Dashboard Grid -->
-        <div class="dashboard-main-grid">
-            <!-- Left Column: Camera Stage & Latencies -->
-            <div class="camera-column">
-                <div id="camera-stage" class="camera-stage">
-                    <video id="camera-video" class="camera-video" autoplay playsinline muted style="display: none;"></video>
-                    <canvas id="camera-overlay" class="camera-overlay"></canvas>
-                    <div id="camera-placeholder" class="camera-placeholder">
-                        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                        </svg>
-                        <div>Camera Offline</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">Click "Start Camera" to initialize the stream.</div>
+        <!-- TAB VIEW 1: Live Recognition & Intelligence Stage -->
+        <div id="view-live" class="tab-view active" style="margin-top: 12px;">
+            <div class="dashboard-main-grid">
+                <!-- Left Column: Camera Stage & Latencies -->
+                <div class="camera-column">
+                    <div id="camera-stage" class="camera-stage">
+                        <video id="camera-video" class="camera-video" autoplay playsinline muted style="display: none;"></video>
+                        <canvas id="camera-overlay" class="camera-overlay"></canvas>
+                        <div id="camera-placeholder" class="camera-placeholder">
+                            <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                            <div>Camera Offline</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">Click "Start Camera" to initialize the stream.</div>
+                        </div>
+                    </div>
+
+                    <!-- Stage Latencies Telemetry Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Stage Execution Telemetry</span>
+                        </div>
+                        <div class="kv-grid">
+                            <div class="kv-item">
+                                <div class="kv-label">Recognition</div>
+                                <div id="lat-rec" class="kv-value">0.0 ms</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Temporal</div>
+                                <div id="lat-temp" class="kv-value">0.0 ms</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Presence</div>
+                                <div id="lat-pres" class="kv-value">0.0 ms</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Total Latency</div>
+                                <div id="lat-total" class="kv-value" style="color: var(--primary);">0.0 ms</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Stage Latencies Telemetry Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Stage Execution Telemetry</span>
+                <!-- Right Column: Intelligence Cards -->
+                <div class="intelligence-column">
+                    <!-- 1. Recognition Intelligence -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Recognition Intelligence</span>
+                            <span id="rec-decision" class="badge badge-neutral">STANDBY</span>
+                        </div>
+                        <div class="kv-grid">
+                            <div class="kv-item" style="grid-column: span 2;">
+                                <div class="kv-label">Detected Identity</div>
+                                <div id="rec-identity" class="kv-value" style="font-size: 18px;">--</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Cosine Similarity</div>
+                                <div id="rec-similarity" class="kv-value">--</div>
+                                <div class="progress-bar-container">
+                                    <div id="rec-similarity-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Production Threshold</div>
+                                <div id="rec-threshold" class="kv-value">0.2400</div>
+                            </div>
+                            <div class="kv-item" style="grid-column: span 2;">
+                                <div class="kv-label">Face Quality Status</div>
+                                <div id="rec-quality-status" class="kv-value" style="font-size: 13px;">--</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="kv-grid">
-                        <div class="kv-item">
-                            <div class="kv-label">Recognition</div>
-                            <div id="lat-rec" class="kv-value">0.0 ms</div>
+
+                    <!-- 2. Temporal Identity Stability -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Temporal Identity Stability</span>
+                            <span id="temp-state" class="badge badge-neutral">STANDBY</span>
                         </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Temporal</div>
-                            <div id="lat-temp" class="kv-value">0.0 ms</div>
+                        <div class="kv-grid">
+                            <div class="kv-item">
+                                <div class="kv-label">Stable Identity</div>
+                                <div id="temp-identity" class="kv-value">--</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Confidence</div>
+                                <div id="temp-confidence" class="kv-value">--</div>
+                            </div>
+                            <div class="kv-item" style="grid-column: span 2;">
+                                <div class="kv-label">Window Observations</div>
+                                <div id="temp-obs-count" class="kv-value" style="font-size: 13px;">--</div>
+                            </div>
                         </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Presence</div>
-                            <div id="lat-pres" class="kv-value">0.0 ms</div>
+                    </div>
+
+                    <!-- 3. Presence & Session Intelligence -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Presence & Session Intelligence</span>
+                            <span id="pres-state" class="badge badge-neutral">NOT_PRESENT</span>
                         </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Total Latency</div>
-                            <div id="lat-total" class="kv-value" style="color: var(--primary);">0.0 ms</div>
+                        <div class="kv-grid">
+                            <div class="kv-item">
+                                <div class="kv-label">Active Person</div>
+                                <div id="pres-identity" class="kv-value">--</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Session ID</div>
+                                <div id="pres-session-id" class="kv-value" style="font-size: 13px;">--</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Duration</div>
+                                <div id="pres-duration" class="kv-value">--</div>
+                            </div>
+                            <div class="kv-item">
+                                <div class="kv-label">Interruptions</div>
+                                <div id="pres-interruptions" class="kv-value">--</div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Column: Intelligence Cards -->
-            <div class="intelligence-column">
-                <!-- 1. Recognition Intelligence -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Recognition Intelligence</span>
-                        <span id="rec-decision" class="badge badge-neutral">STANDBY</span>
-                    </div>
-                    <div class="kv-grid">
-                        <div class="kv-item" style="grid-column: span 2;">
-                            <div class="kv-label">Detected Identity</div>
-                            <div id="rec-identity" class="kv-value" style="font-size: 18px;">--</div>
-                        </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Cosine Similarity</div>
-                            <div id="rec-similarity" class="kv-value">--</div>
-                            <div class="progress-bar-container">
-                                <div id="rec-similarity-fill" class="progress-bar-fill" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Production Threshold</div>
-                            <div id="rec-threshold" class="kv-value">0.2400</div>
-                        </div>
-                        <div class="kv-item" style="grid-column: span 2;">
-                            <div class="kv-label">Face Quality Status</div>
-                            <div id="rec-quality-status" class="kv-value" style="font-size: 13px;">--</div>
-                        </div>
-                    </div>
+            <!-- Bottom Grid: Activity Stream Table -->
+            <div class="card" style="margin-top: 12px;">
+                <div class="card-header">
+                    <span class="card-title">Live Event & Session Activity Stream</span>
                 </div>
-
-                <!-- 2. Temporal Identity Stability -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Temporal Identity Stability</span>
-                        <span id="temp-state" class="badge badge-neutral">STANDBY</span>
-                    </div>
-                    <div class="kv-grid">
-                        <div class="kv-item">
-                            <div class="kv-label">Stable Identity</div>
-                            <div id="temp-identity" class="kv-value">--</div>
-                        </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Confidence</div>
-                            <div id="temp-confidence" class="kv-value">--</div>
-                        </div>
-                        <div class="kv-item" style="grid-column: span 2;">
-                            <div class="kv-label">Window Observations</div>
-                            <div id="temp-obs-count" class="kv-value" style="font-size: 13px;">--</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. Presence & Session Intelligence -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Presence & Session Intelligence</span>
-                        <span id="pres-state" class="badge badge-neutral">NOT_PRESENT</span>
-                    </div>
-                    <div class="kv-grid">
-                        <div class="kv-item">
-                            <div class="kv-label">Active Person</div>
-                            <div id="pres-identity" class="kv-value">--</div>
-                        </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Session ID</div>
-                            <div id="pres-session-id" class="kv-value" style="font-size: 13px;">--</div>
-                        </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Duration</div>
-                            <div id="pres-duration" class="kv-value">--</div>
-                        </div>
-                        <div class="kv-item">
-                            <div class="kv-label">Interruptions</div>
-                            <div id="pres-interruptions" class="kv-value">--</div>
-                        </div>
-                    </div>
+                <div class="activity-table-wrapper">
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Identity</th>
+                                <th>Event Type</th>
+                                <th>Transition</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activity-table-body">
+                            <tr>
+                                <td colspan="4" style="text-align: center; color: var(--text-muted);">No presence events recorded yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
-        <!-- Bottom Grid: Activity Stream Table -->
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title">Live Event & Session Activity Stream</span>
+        <!-- TAB VIEW 2: Daily Attendance Journal -->
+        <div id="view-attendance" class="tab-view" style="display: none; margin-top: 12px;">
+            <!-- Controls & Summary Row -->
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; margin-bottom: 12px;">
+                <div class="card" style="flex: 1; min-width: 260px;">
+                    <div class="card-header">
+                        <span class="card-title">Filter by Calendar Date</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input id="att-date-input" type="date" class="form-input" style="flex: 1;">
+                        <button id="att-btn-refresh" class="btn btn-secondary btn-sm">Refresh</button>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 6px;">
+                        <button id="att-btn-export-csv" class="btn btn-primary btn-sm" style="flex: 1;">Export CSV</button>
+                        <button id="att-btn-export-json" class="btn btn-secondary btn-sm" style="flex: 1;">Export JSON</button>
+                    </div>
+                </div>
+
+                <div class="card" style="flex: 2; min-width: 320px;">
+                    <div class="card-header">
+                        <span class="card-title">Daily Attendance Metrics</span>
+                    </div>
+                    <div class="kv-grid">
+                        <div class="kv-item">
+                            <div class="kv-label">Total Present</div>
+                            <div id="att-stat-present" class="kv-value" style="color: var(--success);">0</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">In Progress</div>
+                            <div id="att-stat-inprogress" class="kv-value" style="color: var(--warning);">0</div>
+                        </div>
+                        <div class="kv-item">
+                            <div class="kv-label">Average Dwell</div>
+                            <div id="att-stat-avgdwell" class="kv-value" style="color: var(--primary);">0 min</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="activity-table-wrapper">
-                <table class="activity-table">
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Identity</th>
-                            <th>Event Type</th>
-                            <th>Transition</th>
-                        </tr>
-                    </thead>
-                    <tbody id="activity-table-body">
-                        <tr>
-                            <td colspan="4" style="text-align: center; color: var(--text-muted);">No presence events recorded yet.</td>
-                        </tr>
-                    </tbody>
-                </table>
+
+            <!-- Attendance Records Table -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Daily Attendance Records</span>
+                </div>
+                <div class="activity-table-wrapper" style="max-height: 400px;">
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th>Identity</th>
+                                <th>First Check-In</th>
+                                <th>Last Check-Out</th>
+                                <th>Cumulative Dwell</th>
+                                <th>Sessions</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="att-table-body">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-muted);">Select a date to load records.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB VIEW 3: Identity Directory & Enrollment -->
+        <div id="view-identities" class="tab-view" style="display: none; margin-top: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div class="card" style="padding: 8px 16px; flex-direction: row; align-items: center; gap: 12px;">
+                    <span class="card-title" style="margin: 0;">Total Enrolled:</span>
+                    <span id="id-stat-total" class="kv-value" style="color: var(--primary); font-size: 18px;">0</span>
+                </div>
+                <button id="id-btn-open-enroll" class="btn btn-primary">+ Enroll New Person</button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Enrolled Biometric Gallery Roster</span>
+                </div>
+                <div class="activity-table-wrapper" style="max-height: 450px;">
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th>Identity Name</th>
+                                <th>Enrolled Templates</th>
+                                <th>Enrollment Date</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="id-table-body">
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--text-muted);">Loading enrolled identities...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: Dynamic Identity Enrollment -->
+        <div id="modal-enroll" class="modal-overlay" style="display: none;">
+            <div class="modal-dialog">
+                <div class="card-header">
+                    <span class="card-title">Enroll New Identity</span>
+                    <button id="modal-enroll-close" class="btn btn-secondary btn-sm">✕</button>
+                </div>
+
+                <div id="enroll-feedback" class="status-banner info" style="display: none;"></div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label class="kv-label">Person Name *</label>
+                    <input id="enroll-name" type="text" class="form-input" placeholder="e.g. Jane Doe">
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label class="kv-label">Face Quality Gate Mode</label>
+                    <select id="enroll-quality-mode" class="form-input">
+                        <option value="balanced" selected>Balanced (Recommended)</option>
+                        <option value="strict">Strict</option>
+                        <option value="lenient">Lenient</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label class="kv-label">Capture Photo</label>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="enroll-btn-snap" class="btn btn-secondary btn-sm" style="flex: 1;">Capture from Live Webcam</button>
+                        <input id="enroll-file-input" type="file" accept="image/*" style="display: none;">
+                        <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="document.getElementById('enroll-file-input').click()">Upload File</button>
+                    </div>
+                </div>
+
+                <div style="text-align: center;">
+                    <img id="enroll-preview-img" src="" alt="Preview" style="max-height: 140px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); display: none; margin: 0 auto;">
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label class="kv-label">Notes (Optional)</label>
+                    <input id="enroll-notes" type="text" class="form-input" placeholder="e.g. Engineering Team">
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('modal-enroll').style.display='none'">Cancel</button>
+                    <button id="enroll-btn-submit" class="btn btn-primary">Enroll Template</button>
+                </div>
             </div>
         </div>
     </div>
@@ -199,6 +358,8 @@
     <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
     <script src="{{ url_for('static', filename='js/overlay.js') }}"></script>
     <script src="{{ url_for('static', filename='js/state.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/attendance_view.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/identities_view.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
