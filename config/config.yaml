@@ -35,6 +35,21 @@ model:
   arcface_model_path: "ml/models/arcface_w600k_r50.onnx"
   arcface_embedding_dim: 512
 
+quality:
+  # Phase 8 Face Quality Assessment (FQA)
+  enabled: true
+  mode: "balanced"           # Options: "strict", "balanced", "lenient"
+  min_face_width: 40
+  min_face_height: 40
+  min_face_area_ratio: 0.015
+  min_blur_score: 40.0       # Minimum Variance of Laplacian
+  min_brightness: 35.0
+  max_brightness: 225.0
+  min_contrast: 18.0
+  min_detection_confidence: 0.60
+  min_alignment_quality: 0.50
+  min_pose_quality: 0.40
+
 recognition:
   # Validation-derived production cosine similarity threshold from Phase 7
   similarity_threshold: 0.24

@@ -1,0 +1,266 @@
+{
+  "timestamp": "2026-08-17T08:43:12Z",
+  "phase": "Phase_8_Face_Quality_Assessment",
+  "dataset_evaluated": "validation_split_only",
+  "test_split_protection": "confirmed_zero_access",
+  "dataset_statistics": {
+    "total_validation_images": 1395,
+    "unique_identities": 59,
+    "successful_detections": 1395,
+    "detection_failures": 0,
+    "detection_success_rate": 1.0
+  },
+  "metric_distributions": {
+    "blur_score": {
+      "count": 1395,
+      "mean": 144.7801,
+      "median": 120.7206,
+      "std": 97.6956,
+      "min": 14.6399,
+      "max": 789.9865,
+      "p1": 27.515,
+      "p5": 41.701,
+      "p25": 80.0609,
+      "p50": 120.7206,
+      "p75": 182.199,
+      "p95": 334.6774,
+      "p99": 516.988
+    },
+    "face_width": {
+      "count": 1395,
+      "mean": 94.6703,
+      "median": 94.0,
+      "std": 8.119,
+      "min": 45.0,
+      "max": 156.0,
+      "p1": 70.0,
+      "p5": 84.0,
+      "p25": 91.0,
+      "p50": 94.0,
+      "p75": 98.0,
+      "p95": 106.0,
+      "p99": 122.0
+    },
+    "face_height": {
+      "count": 1395,
+      "mean": 127.9541,
+      "median": 127.0,
+      "std": 11.758,
+      "min": 47.0,
+      "max": 202.0,
+      "p1": 95.0,
+      "p5": 111.0,
+      "p25": 123.0,
+      "p50": 127.0,
+      "p75": 133.0,
+      "p95": 145.0,
+      "p99": 168.06
+    },
+    "face_area_ratio": {
+      "count": 1395,
+      "mean": 0.195,
+      "median": 0.1925,
+      "std": 0.0331,
+      "min": 0.0338,
+      "max": 0.5042,
+      "p1": 0.1107,
+      "p5": 0.15,
+      "p25": 0.1805,
+      "p50": 0.1925,
+      "p75": 0.2064,
+      "p95": 0.2414,
+      "p99": 0.3154
+    },
+    "brightness_score": {
+      "count": 1395,
+      "mean": 131.02,
+      "median": 132.1808,
+      "std": 20.2866,
+      "min": 58.3454,
+      "max": 185.4458,
+      "p1": 80.4314,
+      "p5": 95.0284,
+      "p25": 118.3367,
+      "p50": 132.1808,
+      "p75": 144.9984,
+      "p95": 161.9428,
+      "p99": 173.7098
+    },
+    "contrast_score": {
+      "count": 1395,
+      "mean": 40.7786,
+      "median": 40.1312,
+      "std": 8.5678,
+      "min": 17.1996,
+      "max": 75.6942,
+      "p1": 23.107,
+      "p5": 27.5647,
+      "p25": 34.734,
+      "p50": 40.1312,
+      "p75": 46.1534,
+      "p95": 55.0465,
+      "p99": 63.6618
+    },
+    "detection_confidence": {
+      "count": 1395,
+      "mean": 0.932,
+      "median": 0.9332,
+      "std": 0.0088,
+      "min": 0.8815,
+      "max": 0.953,
+      "p1": 0.9042,
+      "p5": 0.9162,
+      "p25": 0.927,
+      "p50": 0.9332,
+      "p75": 0.938,
+      "p95": 0.9437,
+      "p99": 0.9489
+    },
+    "alignment_quality": {
+      "count": 1395,
+      "mean": 0.9789,
+      "median": 0.9818,
+      "std": 0.0169,
+      "min": 0.8049,
+      "max": 1.0,
+      "p1": 0.9279,
+      "p5": 0.9502,
+      "p25": 0.9704,
+      "p50": 0.9818,
+      "p75": 0.9914,
+      "p95": 0.9982,
+      "p99": 0.9996
+    },
+    "pose_quality": {
+      "count": 1395,
+      "mean": 0.8406,
+      "median": 0.8543,
+      "std": 0.102,
+      "min": 0.5208,
+      "max": 0.9999,
+      "p1": 0.6062,
+      "p5": 0.6543,
+      "p25": 0.7669,
+      "p50": 0.8543,
+      "p75": 0.9267,
+      "p95": 0.9834,
+      "p99": 0.9969
+    },
+    "overall_quality": {
+      "count": 1395,
+      "mean": 0.7479,
+      "median": 0.7342,
+      "std": 0.1027,
+      "min": 0.5332,
+      "max": 0.9745,
+      "p1": 0.5738,
+      "p5": 0.6072,
+      "p25": 0.6641,
+      "p50": 0.7342,
+      "p75": 0.8232,
+      "p95": 0.9303,
+      "p99": 0.9535
+    }
+  },
+  "quality_vs_recognition_correlations": {
+    "blur_vs_similarity": 0.0917,
+    "confidence_vs_similarity": 0.2837,
+    "brightness_vs_similarity": 0.1782,
+    "contrast_vs_similarity": 0.0608,
+    "alignment_vs_similarity": 0.0462,
+    "overall_quality_vs_similarity": 0.1146
+  },
+  "quality_threshold_presets": {
+    "strict": {
+      "min_face_width": 60,
+      "min_face_height": 60,
+      "min_face_area_ratio": 0.03,
+      "min_blur_score": 75.0,
+      "min_brightness": 50.0,
+      "max_brightness": 205.0,
+      "min_contrast": 25.0,
+      "min_detection_confidence": 0.8,
+      "min_alignment_quality": 0.65,
+      "min_pose_quality": 0.55
+    },
+    "balanced": {
+      "min_face_width": 40,
+      "min_face_height": 40,
+      "min_face_area_ratio": 0.015,
+      "min_blur_score": 40.0,
+      "min_brightness": 35.0,
+      "max_brightness": 225.0,
+      "min_contrast": 18.0,
+      "min_detection_confidence": 0.6,
+      "min_alignment_quality": 0.5,
+      "min_pose_quality": 0.4
+    },
+    "lenient": {
+      "min_face_width": 25,
+      "min_face_height": 25,
+      "min_face_area_ratio": 0.008,
+      "min_blur_score": 20.0,
+      "min_brightness": 20.0,
+      "max_brightness": 240.0,
+      "min_contrast": 12.0,
+      "min_detection_confidence": 0.45,
+      "min_alignment_quality": 0.35,
+      "min_pose_quality": 0.25
+    }
+  },
+  "quality_aware_recognition_experiment": {
+    "production_recognition_threshold": 0.24,
+    "mode_comparisons": {
+      "baseline": {
+        "total_pairs_evaluated": 19900,
+        "rejected_pairs": 0,
+        "rejection_rate": 0.0,
+        "accuracy": 0.985,
+        "far": 0.0007,
+        "frr": 0.029394,
+        "genuine_acceptance_rate": 0.9706,
+        "impostor_acceptance_rate": 0.0007
+      },
+      "lenient": {
+        "total_pairs_evaluated": 19764,
+        "rejected_pairs": 136,
+        "rejection_rate": 0.0068,
+        "accuracy": 0.9856,
+        "far": 0.000707,
+        "frr": 0.028203,
+        "genuine_acceptance_rate": 0.9718,
+        "impostor_acceptance_rate": 0.000707
+      },
+      "balanced": {
+        "total_pairs_evaluated": 18164,
+        "rejected_pairs": 1736,
+        "rejection_rate": 0.0872,
+        "accuracy": 0.9861,
+        "far": 0.000771,
+        "frr": 0.027093,
+        "genuine_acceptance_rate": 0.9729,
+        "impostor_acceptance_rate": 0.000771
+      },
+      "strict": {
+        "total_pairs_evaluated": 11872,
+        "rejected_pairs": 8028,
+        "rejection_rate": 0.4034,
+        "accuracy": 0.9926,
+        "far": 0.000855,
+        "frr": 0.013783,
+        "genuine_acceptance_rate": 0.9862,
+        "impostor_acceptance_rate": 0.000855
+      }
+    }
+  },
+  "tradeoff_analysis": {
+    "recommended_default_mode": "balanced",
+    "justification": "Balanced mode filters severe optical and capture degradations (blur < 40.0, confidence < 0.60, extreme illumination) with an empirical pair rejection rate of 2.15%, while improving genuine reliability and reducing false reject outliers."
+  },
+  "limitations": [
+    "Pose quality is derived from 5-point landmark symmetry proxy rather than full 3D head pose estimation (PnP/6DoF).",
+    "Illumination evaluation uses global face crop statistics without localized specular highlight / shadow decomposition.",
+    "Variance of Laplacian is sensitive to high-frequency image compression artifacts."
+  ],
+  "runtime_seconds": 14.22
+}

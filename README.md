@@ -8,6 +8,7 @@ This repository contains a modular Face Recognition Attendance System designed a
 > **Note on Evaluation Protocol & Threshold Calibration:**
 > - Phase 6 benchmarked verification performance on the official 10-fold LFW dataset.
 > - Phase 7 calibrated the production decision threshold on the project's **independent validation split** (59 identities, 1,395 images), strictly protecting the final hold-out test set from any access.
+> - Phase 8 established the **Face Quality Assessment (FQA)** subsystem, evaluating visual and geometric quality signals before feature extraction.
 
 ---
 
@@ -25,6 +26,11 @@ face_recognition_attendence_system/
 │   ├── embedder.py           # BaseEmbedder, DlibEmbedder (128D) & ArcFaceEmbedder (512D)
 │   ├── matcher.py            # BaseMatcher, EuclideanMatcher & CosineMatcher
 │   ├── gallery.py            # IdentityGallery (multi-template enrollment & search)
+│   ├── quality/              # Face Quality Assessment (FQA) subsystem
+│   │   ├── __init__.py       # Quality package exports
+│   │   ├── schemas.py        # FaceQualityMetrics, QualityThresholds, QualityMode
+│   │   ├── metrics.py        # Laplacian blur, brightness, contrast, alignment/pose proxies
+│   │   └── assessor.py       # FaceQualityAssessor with Strict/Balanced/Lenient modes
 │   ├── pipeline.py           # Baseline (E1) & Modern (E2) Recognition Pipelines
 │   ├── evaluation/           # Verification & threshold calibration framework
 │   │   ├── __init__.py       # Exports
@@ -34,7 +40,7 @@ face_recognition_attendence_system/
 │   └── models/               # Downloaded ONNX model weights (YuNet, ArcFace)
 ├── config/
 │   ├── __init__.py           # Config loader
-│   └── config.yaml           # System paths, model parameters, and thresholds
+│   └── config.yaml           # System paths, model parameters, quality, and thresholds
 ├── data/                     # Dataset storage (Gitignored raw/eval images & galleries)
 │   ├── raw/lfw/              # Full downloaded LFW dataset (5,760 identities)
 │   ├── evaluation/           # Partitioned evaluation images
@@ -49,10 +55,11 @@ face_recognition_attendence_system/
 │       └── dataset_summary.json   # Full dataset audit summary
 ├── reports/                  # Generated experiment reports & visualizations
 │   ├── evaluation/           # 10-fold verification summary JSON & plots
-│   └── calibration/          # Production threshold calibration summary JSON & plots
-│       ├── README.md         # Calibration documentation & strategy comparisons
-│       ├── calibration_summary.json # Machine-readable validation calibration metrics
-│       └── plots/            # Calibration curves, FAR/FRR, distributions & operating points
+│   ├── calibration/          # Production threshold calibration summary JSON & plots
+│   └── quality/              # Face quality analysis summary JSON & plots
+│       ├── README.md         # Quality signal documentation & mode comparison
+│       ├── quality_analysis_summary.json # Machine-readable quality metrics & percentiles
+│       └── plots/            # Blur, illumination, contrast, size distributions & trade-offs
 ├── scripts/
 │   ├── prepare_dataset.py                 # LFW acquisition & split partitioning
 │   ├── validate_dataset.py                # Leakage, hash, and integrity audit
@@ -62,9 +69,10 @@ face_recognition_attendence_system/
 │   ├── evaluate_identification_pipeline.py# Open-set identification pipeline verification
 │   ├── evaluate_verification.py           # Formal 10-fold LFW verification benchmark
 │   ├── calibrate_threshold.py             # Validation production threshold calibrator
+│   ├── evaluate_face_quality.py           # Validation face quality assessment & experiment
 │   ├── generate_baseline_embeddings.py    # Offline baseline feature extraction
 │   └── verify_baseline.py                 # Manual & API verification script
-├── tests/                    # PyTest test suite (68 tests)
+├── tests/                    # PyTest test suite (77 tests)
 │   ├── test_aligner.py       # 5-point alignment unit tests
 │   ├── test_calibrator.py    # Threshold calibrator & strategy unit tests
 │   ├── test_dataset.py       # Dataset partitioning and leakage tests
@@ -74,6 +82,7 @@ face_recognition_attendence_system/
 │   ├── test_gallery.py       # IdentityGallery multi-template & search tests
 │   ├── test_matcher.py       # Similarity matcher unit tests (Euclidean & Cosine)
 │   ├── test_pipeline.py      # Baseline recognition pipeline tests
+│   ├── test_quality.py       # Face Quality Assessment & metric unit tests
 │   ├── test_recognition_pipeline.py # Modern recognition pipeline tests
 │   └── test_api.py           # Web API integration tests
 ├── templates/                # Frontend HTML views
@@ -121,24 +130,45 @@ Conducted strictly on the **independent validation split** (59 identities, 1,395
 
 ---
 
-## 4. Setup & Execution Commands
+## 4. Face Quality Assessment & Quality-Aware Recognition (Phase 8)
 
-### 1. Run Production Threshold Calibration
+### Methodology & Validation Results
+The Face Quality Assessment (FQA) subsystem evaluates detected faces across sharpness (Laplacian variance), illumination, contrast, detection confidence, and landmark symmetry before feature extraction.
+
+| Operating Mode | Frame/Pair Rejection Rate | Filtered Accuracy (%) | False Acceptance Rate (FAR) | False Rejection Rate (FRR) |
+|---|---|---|---|---|
+| **Baseline (No FQA)** | $0.00\%$ ($0 / 19,900$) | **$98.50\%$** | $0.070\%$ ($0.000700$) | $2.94\%$ ($0.02939$) |
+| **Lenient FQA** | $0.68\%$ ($136 / 19,900$) | **$98.56\%$** | $0.071\%$ ($0.000707$) | $2.82\%$ ($0.02820$) |
+| **Balanced FQA (Default)** | $\mathbf{8.72\%}$ ($1,736 / 19,900$) | $\mathbf{98.61\%}$ | $\mathbf{0.077\%}$ ($0.000771$) | $\mathbf{2.71\%}$ ($0.02709$) |
+| **Strict FQA** | $40.34\%$ ($8,028 / 19,900$) | **$99.26\%$** | $0.085\%$ ($0.000855$) | $1.38\%$ ($0.01378$) |
+
+* Full quality plots, percentile distributions, and correlation matrices are documented in [`reports/quality/`](./reports/quality/README.md).
+
+---
+
+## 5. Setup & Execution Commands
+
+### 1. Run Face Quality Assessment Evaluation
+```bash
+python scripts/evaluate_face_quality.py
+```
+
+### 2. Run Production Threshold Calibration
 ```bash
 python scripts/calibrate_threshold.py
 ```
 
-### 2. Run 10-Fold LFW Face Verification Benchmark
+### 3. Run 10-Fold LFW Face Verification Benchmark
 ```bash
 python scripts/evaluate_verification.py
 ```
 
-### 3. Run Complete PyTest Suite (68 tests)
+### 4. Run Complete PyTest Suite (77 tests)
 ```bash
 pytest -v
 ```
 
-### 4. Start Flask Web Application
+### 5. Start Flask Web Application
 ```bash
 python app.py
 ```

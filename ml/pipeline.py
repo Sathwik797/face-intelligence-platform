@@ -10,6 +10,7 @@ from ml.aligner import FaceAligner
 from ml.embedder import BaseEmbedder, DlibEmbedder, ArcFaceEmbedder
 from ml.matcher import BaseMatcher, EuclideanMatcher, CosineMatcher
 from ml.gallery import IdentityGallery
+from ml.quality import FaceQualityAssessor, FaceQualityMetrics
 
 # --- Baseline E1 Data Structure ---
 
@@ -37,6 +38,7 @@ class ModernRecognitionResult:
     """
     Structured result of a modern ArcFace recognition query (Experiment E2).
     Explicitly distinguishes between best_candidate and final open-set recognition decision.
+    Includes Phase 8 Face Quality Assessment metrics when enabled.
     """
     identity: Optional[str]              # Enrolled name if recognized, None if rejected as Unknown
     best_candidate: str                  # Closest gallery candidate
@@ -48,7 +50,8 @@ class ModernRecognitionResult:
     model: str = "arcface_resnet50_512d"
     embedding_dim: int = 512
     latency_ms: float = 0.0
-    reason: str = "accepted"             # "accepted", "below_threshold", "no_face_detected", "multiple_faces_rejected"
+    reason: str = "accepted"             # "accepted", "below_threshold", "no_face_detected", "multiple_faces_rejected", "quality_rejected: ..."
+    quality: Optional[FaceQualityMetrics] = None      # Phase 8 Face Quality Assessment metrics
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -62,7 +65,8 @@ class ModernRecognitionResult:
             "model": self.model,
             "embedding_dimension": self.embedding_dim,
             "latency_ms": round(float(self.latency_ms), 2),
-            "reason": self.reason
+            "reason": self.reason,
+            "quality": self.quality.to_dict() if self.quality is not None else None
         }
 
 
@@ -139,11 +143,12 @@ class ModernRecognitionPipeline:
         1. RGB Image Input
         2. YuNet Face Detection
         3. Deterministic Primary Face Selection (Highest Confidence Policy)
-        4. 5-Point Landmark Affine Alignment (112x112 Canonical Crop)
-        5. ArcFace Deep Embedding Extraction (512D ResNet-50)
-        6. L2 Normalization
-        7. Multi-template Cosine Similarity Search against IdentityGallery
-        8. Open-Set Threshold Decision (Recognized Identity OR Unknown)
+        4. Face Quality Assessment (Phase 8 FQA) -> Reject poor frames if enabled
+        5. 5-Point Landmark Affine Alignment (112x112 Canonical Crop)
+        6. ArcFace Deep Embedding Extraction (512D ResNet-50)
+        7. L2 Normalization
+        8. Multi-template Cosine Similarity Search against IdentityGallery
+        9. Open-Set Threshold Decision (Recognized Identity OR Unknown)
     """
 
     def __init__(
@@ -153,7 +158,8 @@ class ModernRecognitionPipeline:
         embedder: ArcFaceEmbedder,
         gallery: IdentityGallery,
         threshold: float = 0.24,
-        multi_face_policy: str = "highest_confidence"
+        multi_face_policy: str = "highest_confidence",
+        quality_assessor: Optional[FaceQualityAssessor] = None
     ):
         self.detector = detector
         self.aligner = aligner
@@ -161,6 +167,7 @@ class ModernRecognitionPipeline:
         self.gallery = gallery
         self.threshold = float(threshold)
         self.multi_face_policy = multi_face_policy
+        self.quality_assessor = quality_assessor
 
     @classmethod
     def from_config(
@@ -191,13 +198,19 @@ class ModernRecognitionPipeline:
         else:
             gallery = IdentityGallery()
 
+        quality_cfg = config.get("quality", {})
+        quality_assessor = None
+        if quality_cfg.get("enabled", False):
+            quality_assessor = FaceQualityAssessor.from_config(quality_cfg)
+
         return cls(
             detector=detector,
             aligner=aligner,
             embedder=embedder,
             gallery=gallery,
             threshold=threshold,
-            multi_face_policy=multi_face_policy
+            multi_face_policy=multi_face_policy,
+            quality_assessor=quality_assessor
         )
 
     def recognize(self, rgb_image: np.ndarray) -> ModernRecognitionResult:
@@ -253,7 +266,28 @@ class ModernRecognitionPipeline:
 
         primary_face = max(faces, key=lambda d: d.confidence)
 
-        # 3. 5-point alignment
+        # 3. Face Quality Assessment (Phase 8 FQA)
+        quality_metrics = None
+        if self.quality_assessor is not None and self.quality_assessor.enabled:
+            quality_metrics = self.quality_assessor.assess(rgb_image, primary_face)
+            if quality_metrics.quality_status == "poor":
+                t_end = time.perf_counter()
+                return ModernRecognitionResult(
+                    identity=None,
+                    best_candidate="Unknown",
+                    similarity=-1.0,
+                    threshold=self.threshold,
+                    recognized=False,
+                    bbox=primary_face.bbox,
+                    landmarks=primary_face.landmarks,
+                    model=self.embedder.model_name,
+                    embedding_dim=self.embedder.embedding_dim,
+                    latency_ms=(t_end - t0) * 1000.0,
+                    reason=f"quality_rejected: {', '.join(quality_metrics.rejection_reasons)}",
+                    quality=quality_metrics
+                )
+
+        # 4. 5-point alignment
         if primary_face.landmarks is None:
             t_end = time.perf_counter()
             return ModernRecognitionResult(
@@ -264,15 +298,16 @@ class ModernRecognitionPipeline:
                 recognized=False,
                 bbox=primary_face.bbox,
                 latency_ms=(t_end - t0) * 1000.0,
-                reason="missing_landmarks"
+                reason="missing_landmarks",
+                quality=quality_metrics
             )
 
         aligned_crop = self.aligner.align(rgb_image, primary_face.landmarks)
 
-        # 4. Extract ArcFace 512D normalized embedding
+        # 5. Extract ArcFace 512D normalized embedding
         emb = self.embedder.embed(aligned_crop)
 
-        # 5. Query IdentityGallery
+        # 6. Query IdentityGallery
         rec_id, best_cand, best_sim, is_rec = self.gallery.search(
             query_embedding=emb,
             threshold=self.threshold
@@ -294,5 +329,6 @@ class ModernRecognitionPipeline:
             model=self.embedder.model_name,
             embedding_dim=self.embedder.embedding_dim,
             latency_ms=latency_ms,
-            reason=reason
+            reason=reason,
+            quality=quality_metrics
         )

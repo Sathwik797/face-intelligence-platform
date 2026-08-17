@@ -28,7 +28,7 @@ dataset/
 !data/metadata/
 !data/metadata/**
 
-# Preserve Evaluation & Calibration Reports/Plots for Portfolio Evidence
+# Preserve Evaluation, Calibration & Quality Reports/Plots for Portfolio Evidence
 !reports/
 !reports/evaluation/
 !reports/evaluation/plots/
@@ -42,6 +42,12 @@ dataset/
 !reports/calibration/README.md
 !reports/calibration/calibration_summary.json
 
+!reports/quality/
+!reports/quality/plots/
+!reports/quality/plots/*.png
+!reports/quality/README.md
+!reports/quality/quality_analysis_summary.json
+
 # Large Model Weights and Binaries (>100MB / ONNX / Pickle / NPZ)
 ml/models/*.onnx
 *.onnx
@@ -49,7 +55,7 @@ trained_model/*.pkl
 *.pkl
 *.npz
 
-# Exclude Evaluation & Calibration Biometric Embedding Caches & Raw Pair CSVs
+# Exclude Evaluation, Calibration & Quality Caches & Raw Pair CSVs
 reports/evaluation/cache/
 reports/evaluation/cache/**
 reports/evaluation/pair_results_*.csv
@@ -58,6 +64,10 @@ reports/evaluation/*.csv
 reports/calibration/cache/
 reports/calibration/cache/**
 reports/calibration/*.csv
+
+reports/quality/cache/
+reports/quality/cache/**
+reports/quality/*.csv
 
 # Runtime output logs & CSVs
 attendance.csv
