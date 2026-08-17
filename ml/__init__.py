@@ -6,6 +6,14 @@ from ml.embedder import BaseEmbedder, DlibEmbedder, ArcFaceEmbedder
 from ml.matcher import BaseMatcher, EuclideanMatcher, CosineMatcher
 from ml.gallery import IdentityGallery
 from ml.quality import FaceQualityAssessor, FaceQualityMetrics, QualityMode, QualityThresholds
+from ml.temporal import (
+    TemporalIdentityStabilizer,
+    RecognitionObservation,
+    TemporalRecognitionResult,
+    TemporalPolicyConfig,
+    TemporalMode,
+    TemporalState
+)
 from ml.pipeline import (
     FaceRecognitionPipeline,
     RecognitionResult,
@@ -30,6 +38,12 @@ __all__ = [
     "FaceQualityMetrics",
     "QualityMode",
     "QualityThresholds",
+    "TemporalIdentityStabilizer",
+    "RecognitionObservation",
+    "TemporalRecognitionResult",
+    "TemporalPolicyConfig",
+    "TemporalMode",
+    "TemporalState",
     "FaceRecognitionPipeline",
     "RecognitionResult",
     "ModernRecognitionPipeline",

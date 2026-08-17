@@ -50,6 +50,17 @@ quality:
   min_alignment_quality: 0.50
   min_pose_quality: 0.40
 
+temporal:
+  # Phase 9 Temporal Recognition & Identity Stability
+  enabled: true
+  mode: "balanced"           # Options: "fast", "balanced", "stable"
+  window_size: 7
+  min_observations: 4
+  min_stable_ratio: 0.70
+  max_unknown_observations: 3
+  challenger_switch_threshold: 3
+  max_gap_seconds: 2.0
+
 recognition:
   # Validation-derived production cosine similarity threshold from Phase 7
   similarity_threshold: 0.24

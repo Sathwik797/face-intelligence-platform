@@ -1,0 +1,102 @@
+{
+  "timestamp": "2026-08-17T09:02:49Z",
+  "phase": "Phase_9_Controlled_Temporal_Policy_Validation",
+  "dataset_source": "validation_split_only",
+  "experiment_type": "controlled_temporal_policy_validation",
+  "sequence_nature": "simulated_from_validation_observations",
+  "disclaimer": "Temporal performance was evaluated using controlled simulated sequences derived from validation observations; real video-stream performance remains to be validated.",
+  "test_split_protection": "confirmed_zero_access",
+  "production_recognition_threshold": 0.24,
+  "sequence_statistics": {
+    "total_sequences": 400,
+    "total_observations": 6100,
+    "scenarios_evaluated": [
+      "continuous_same_identity_15_frames",
+      "transient_unknown_dropouts_15_frames",
+      "quality_degraded_jitter_15_frames",
+      "identity_switch_and_rogue_blip_16_frames"
+    ]
+  },
+  "mode_configurations": {
+    "fast": {
+      "window_size": 4,
+      "min_observations": 3,
+      "min_stable_ratio": 0.65,
+      "max_unknown_observations": 2,
+      "challenger_switch_threshold": 2,
+      "max_gap_seconds": 2.0,
+      "mode": "fast"
+    },
+    "balanced": {
+      "window_size": 7,
+      "min_observations": 4,
+      "min_stable_ratio": 0.7,
+      "max_unknown_observations": 3,
+      "challenger_switch_threshold": 3,
+      "max_gap_seconds": 2.0,
+      "mode": "balanced"
+    },
+    "stable": {
+      "window_size": 10,
+      "min_observations": 6,
+      "min_stable_ratio": 0.8,
+      "max_unknown_observations": 4,
+      "challenger_switch_threshold": 5,
+      "max_gap_seconds": 2.5,
+      "mode": "stable"
+    }
+  },
+  "evaluation_results": {
+    "baseline": {
+      "accuracy": 0.9389,
+      "mean_stabilization_latency": 0.0,
+      "transient_recovery_rate": 0.0,
+      "false_switch_rate": 1.0,
+      "total_frames_evaluated": 6100
+    },
+    "fast": {
+      "accuracy": 0.8477,
+      "mean_stabilization_latency": 3.06,
+      "transient_recovery_rate": 0.9718,
+      "false_switch_rate": 0.0,
+      "total_frames_evaluated": 6100
+    },
+    "balanced": {
+      "accuracy": 0.7479,
+      "mean_stabilization_latency": 4.34,
+      "transient_recovery_rate": 0.9718,
+      "false_switch_rate": 0.0,
+      "total_frames_evaluated": 6100
+    },
+    "stable": {
+      "accuracy": 0.5539,
+      "mean_stabilization_latency": 6.76,
+      "transient_recovery_rate": 0.6385,
+      "false_switch_rate": 0.0,
+      "total_frames_evaluated": 6100
+    }
+  },
+  "interpretation_of_experimental_evidence": {
+    "validation_nature": "The experiment validates temporal state-transition behavior under controlled simulated conditions.",
+    "simulated_sequences": "All sequences are simulated from independent validation observations.",
+    "transient_unknown_recovery": "Under the simulated transient single-frame Unknown dropout scenario, the Balanced policy recovered 97.2% of temporary Unknown events while preserving the active identity.",
+    "rogue_blip_suppression": "Under the simulated single-frame rogue-identity-blip scenario, the Balanced temporal policy suppressed 100/100 single-frame challenger blips because the policy requires sustained challenger evidence before switching.",
+    "stabilization_latency": "Reported latency values (FAST: 3.1 frames, BALANCED: 4.3 frames, STABLE: 6.8 frames) measure simulated observation-level stabilization latency. At an assumed 30 FPS, 4.3 frames corresponds to approximately 143 ms.",
+    "real_world_validation": "The results demonstrate that the configured temporal policy behaves as intended under the tested scenarios; real-world video-stream recognition performance remains future work."
+  },
+  "selected_configuration": {
+    "recommended_mode": "balanced",
+    "window_size": 7,
+    "min_observations": 4,
+    "min_stable_ratio": 0.7,
+    "challenger_switch_threshold": 3,
+    "max_unknown_observations": 3,
+    "justification": "BALANCED mode achieves a 97.2% transient Unknown recovery rate and suppresses 100/100 single-frame rogue blips with a simulated observation-level stabilization latency of 4.3 frames (approx. 143 ms at an assumed 30 FPS)."
+  },
+  "limitations": [
+    "Sequences are synthesized from independent validation image observations rather than contiguous video streams.",
+    "Real video-stream recognition accuracy and physical camera tracking remain to be validated.",
+    "Multi-face spatial tracking / bounding-box association is out of scope for Phase 9."
+  ],
+  "runtime_seconds": 1.62
+}
