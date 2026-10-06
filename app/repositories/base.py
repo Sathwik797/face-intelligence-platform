@@ -44,6 +44,21 @@ class BaseAttendanceRepository(ABC):
         pass
 
     @abstractmethod
+    def record_active_session(self, session_id: str, identity: str, date_str: str, started_at: str) -> None:
+        """Persist the start of an active presence session."""
+        pass
+
+    @abstractmethod
+    def get_active_session(self, session_id: str) -> Optional[tuple]:
+        """Return (identity, date, started_at) for an active session."""
+        pass
+
+    @abstractmethod
+    def finalize_session(self, entry: SessionAuditEntry, record: AttendanceRecord) -> AttendanceRecord:
+        """Atomically record a finalized session and its attendance contribution."""
+        pass
+
+    @abstractmethod
     def get_daily_summary(self, date_str: str) -> AttendanceDailySummary:
         """Computes statistical attendance summary for a target date."""
         pass
