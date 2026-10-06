@@ -3,6 +3,7 @@ import urllib.request
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, Union
 import numpy as np
+import cv2
 import onnxruntime as ort
 import face_recognition
 

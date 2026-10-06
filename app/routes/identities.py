@@ -5,6 +5,7 @@ from PIL import Image
 import numpy as np
 
 from app.schemas.responses import error_response
+from app.security import require_api_key
 
 identities_bp = Blueprint("identities", __name__, url_prefix="/api/v1/identities")
 
@@ -12,8 +13,13 @@ identities_bp = Blueprint("identities", __name__, url_prefix="/api/v1/identities
 def _decode_image_payload(image_data: str) -> np.ndarray:
     if "," in image_data:
         image_data = image_data.split(",", 1)[1]
-    image_bytes = base64.b64decode(image_data)
-    pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    image_bytes = base64.b64decode(image_data, validate=True)
+    if not image_bytes or len(image_bytes) > 10 * 1024 * 1024:
+        raise ValueError("Image payload is empty or exceeds the 10MB limit.")
+    pil_img = Image.open(io.BytesIO(image_bytes))
+    if pil_img.width * pil_img.height > 20_000_000:
+        raise ValueError("Image dimensions exceed the 20 megapixel limit.")
+    pil_img = pil_img.convert("RGB")
     return np.array(pil_img)
 
 
@@ -63,6 +69,7 @@ def get_identity_details(name: str):
 
 
 @identities_bp.route("/enroll", methods=["POST"])
+@require_api_key
 def enroll_identity():
     """
     Enrolls a new identity template after executing Face Quality Assessment (FQA).
@@ -90,11 +97,17 @@ def enroll_identity():
     if not identity:
         err, code = error_response("invalid_identity", "Identity name cannot be empty", 400)
         return jsonify(err), code
+    if len(identity) > 128:
+        err, code = error_response("invalid_identity", "Identity name must be 128 characters or fewer", 400)
+        return jsonify(err), code
+    if notes is not None and (not isinstance(notes, str) or len(notes) > 1000):
+        err, code = error_response("invalid_notes", "Notes must be a string of 1000 characters or fewer", 400)
+        return jsonify(err), code
 
     try:
         rgb_image = _decode_image_payload(image_b64)
-    except Exception as e:
-        err, code = error_response("invalid_image_encoding", f"Failed to decode base64 image: {str(e)}", 400)
+    except Exception:
+        err, code = error_response("invalid_image_encoding", "Image payload could not be decoded.", 400)
         return jsonify(err), code
 
     result = service.enroll_identity(
@@ -112,6 +125,7 @@ def enroll_identity():
 
 
 @identities_bp.route("/<name>", methods=["DELETE"])
+@require_api_key
 def delete_identity(name: str):
     """
     Deletes an identity from the live gallery and SQLite metadata.

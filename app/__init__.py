@@ -51,6 +51,7 @@ def create_app(
             repo = SQLiteAttendanceRepository(db_path=db_path)
             app.attendance_service = AttendanceService(repository=repo)
         except Exception:
+            app.logger.exception("Failed to initialize attendance service")
             app.attendance_service = None
 
     # 2. Initialize or inject RuntimeService
@@ -70,6 +71,7 @@ def create_app(
                 attendance_service=app.attendance_service
             )
         except Exception:
+            app.logger.exception("Failed to initialize runtime service")
             app.runtime_service = None
 
     # 3. Initialize or inject EnrollmentService
@@ -86,6 +88,7 @@ def create_app(
             else:
                 app.enrollment_service = None
         except Exception:
+            app.logger.exception("Failed to initialize enrollment service")
             app.enrollment_service = None
 
     # 4. Legacy baseline pipeline initialization (for backward compatibility)
@@ -96,6 +99,7 @@ def create_app(
     try:
         app.pipeline = FaceRecognitionPipeline.from_config(config, embeddings_path=embeddings_path)
     except Exception:
+        app.logger.exception("Failed to initialize legacy face recognition pipeline")
         app.pipeline = None
 
     # 5. Register Blueprints

@@ -1,5 +1,6 @@
 import os
 import json
+import tempfile
 import datetime
 from typing import List, Tuple, Optional, Dict, Any
 import numpy as np
@@ -184,13 +185,21 @@ class IdentityGallery:
         if not val["valid"]:
             raise ValueError(f"Cannot save invalid gallery: {val['errors']}")
 
-        os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
-        np.savez_compressed(
-            filepath,
-            embeddings=self.embeddings,
-            identities=np.array(self.identities, dtype=object),
-            metadata_json=json.dumps(self.metadata)
-        )
+        target_dir = os.path.dirname(os.path.abspath(filepath))
+        os.makedirs(target_dir, exist_ok=True)
+        fd, temp_path = tempfile.mkstemp(prefix=".gallery-", suffix=".npz", dir=target_dir)
+        os.close(fd)
+        try:
+            np.savez_compressed(
+                temp_path,
+                embeddings=self.embeddings,
+                identities=np.asarray(self.identities, dtype=str),
+                metadata_json=json.dumps(self.metadata)
+            )
+            os.replace(temp_path, filepath)
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
 
     @classmethod
     def load(cls, filepath: str) -> "IdentityGallery":
@@ -198,7 +207,7 @@ class IdentityGallery:
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Gallery file not found: {filepath}")
 
-        data = np.load(filepath, allow_pickle=True)
+        data = np.load(filepath, allow_pickle=False)
         embeddings = data["embeddings"]
         identities = list(data["identities"])
         metadata = json.loads(str(data["metadata_json"]))

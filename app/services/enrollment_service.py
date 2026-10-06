@@ -29,7 +29,7 @@ class EnrollmentService:
         self.repository = repository
         self.assessor = assessor or FaceQualityAssessor(mode=QualityMode.BALANCED)
         self.gallery_filepath = gallery_filepath
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         # Synchronize existing gallery identities into repository if not present
         self._sync_existing_gallery()
@@ -70,6 +70,10 @@ class EnrollmentService:
                 message="Identity name cannot be empty."
             )
         identity = identity.strip()
+        if len(identity) > 128:
+            return EnrollmentResult(success=False, identity=identity[:128], error_code="invalid_identity", message="Identity name must be 128 characters or fewer.")
+        if notes is not None and (not isinstance(notes, str) or len(notes) > 1000):
+            return EnrollmentResult(success=False, identity=identity, error_code="invalid_notes", message="Notes must be a string of 1000 characters or fewer.")
 
         if rgb_image is None or not isinstance(rgb_image, np.ndarray) or rgb_image.size == 0:
             return EnrollmentResult(
@@ -88,6 +92,9 @@ class EnrollmentService:
                 error_code="no_face_detected",
                 message="No face detected in the enrollment image."
             )
+
+        if len(faces) != 1:
+            return EnrollmentResult(success=False, identity=identity, error_code="multiple_faces_detected", message="Enrollment requires exactly one detectable face.")
 
         primary_face = faces[0]
 
@@ -140,34 +147,40 @@ class EnrollmentService:
 
         # 5. Atomic Gallery & Persistence Synchronization
         with self._lock:
-            # a. Add template to in-memory gallery
-            self.pipeline.gallery.add_templates(identity=identity, embeddings=embedding)
-            template_count = self.pipeline.gallery.get_identity_template_count(identity)
+            gallery = self.pipeline.gallery
+            previous_embeddings = gallery.embeddings.copy()
+            previous_identities = list(gallery.identities)
+            previous_metadata = dict(gallery.metadata)
+            existing_info = self.repository.get_enrolled_identity(identity)
 
-            # b. Atomically save gallery artifact to disk if configured
-            if self.gallery_filepath:
-                try:
-                    self.pipeline.gallery.save(self.gallery_filepath)
-                except Exception as e:
-                    # Rollback in-memory template addition on disk write failure
-                    self.pipeline.gallery.remove_identity(identity)
-                    return EnrollmentResult(
-                        success=False,
-                        identity=identity,
-                        error_code="disk_persistence_failed",
-                        message=f"Failed to persist gallery archive to disk: {str(e)}"
-                    )
+            try:
+                gallery.add_templates(identity=identity, embeddings=embedding)
+                template_count = gallery.get_identity_template_count(identity)
 
-            # c. Synchronize SQLite metadata
-            now_iso = datetime.now(timezone.utc).isoformat()
-            info = EnrolledIdentityInfo(
-                identity=identity,
-                template_count=template_count,
-                created_at=now_iso,
-                updated_at=now_iso,
-                notes=notes
-            )
-            self.repository.upsert_enrolled_identity(info)
+                if self.gallery_filepath:
+                    gallery.save(self.gallery_filepath)
+
+                now_iso = datetime.now(timezone.utc).isoformat()
+                if existing_info is None:
+                    info = EnrolledIdentityInfo(identity=identity, template_count=template_count, created_at=now_iso, updated_at=now_iso, notes=notes)
+                else:
+                    existing_info.template_count = template_count
+                    existing_info.updated_at = now_iso
+                    if notes is not None:
+                        existing_info.notes = notes
+                    info = existing_info
+
+                self.repository.upsert_enrolled_identity(info)
+            except Exception:
+                gallery.embeddings = previous_embeddings
+                gallery.identities = previous_identities
+                gallery.metadata = previous_metadata
+                if self.gallery_filepath:
+                    try:
+                        gallery.save(self.gallery_filepath)
+                    except Exception:
+                        pass
+                return EnrollmentResult(success=False, identity=identity, error_code="persistence_failed", message="Enrollment could not be persisted.")
 
         return EnrollmentResult(
             success=True,
@@ -186,21 +199,49 @@ class EnrollmentService:
             return False
 
         with self._lock:
-            removed_templates = self.pipeline.gallery.remove_identity(identity)
-            if self.gallery_filepath and removed_templates > 0:
-                try:
-                    self.pipeline.gallery.save(self.gallery_filepath)
-                except Exception:
-                    pass
-            db_deleted = self.repository.delete_enrolled_identity(identity)
-            return (removed_templates > 0) or db_deleted
+            gallery = self.pipeline.gallery
+            previous_embeddings = gallery.embeddings.copy()
+            previous_identities = list(gallery.identities)
+            previous_metadata = dict(gallery.metadata)
+            existing_info = self.repository.get_enrolled_identity(identity)
+
+            removed_templates = gallery.remove_identity(identity)
+            if removed_templates == 0 and existing_info is None:
+                return False
+
+            try:
+                if self.gallery_filepath and removed_templates > 0:
+                    gallery.save(self.gallery_filepath)
+                db_deleted = self.repository.delete_enrolled_identity(identity)
+                if not db_deleted and removed_templates > 0:
+                    raise RuntimeError("Identity metadata deletion failed")
+                return True
+            except Exception:
+                gallery.embeddings = previous_embeddings
+                gallery.identities = previous_identities
+                gallery.metadata = previous_metadata
+                if self.gallery_filepath:
+                    try:
+                        gallery.save(self.gallery_filepath)
+                    except Exception:
+                        pass
+                return False
 
     def list_identities(self) -> List[EnrolledIdentityInfo]:
         """Lists all enrolled identities."""
         with self._lock:
             records = self.repository.list_enrolled_identities()
             if not records and self.pipeline.gallery.total_templates > 0:
-                self._sync_existing_gallery()
+                gallery = self.pipeline.gallery
+                for ident in gallery.unique_identities:
+                    existing = self.repository.get_enrolled_identity(ident)
+                    count = gallery.get_identity_template_count(ident)
+                    if existing is None:
+                        self.repository.upsert_enrolled_identity(EnrolledIdentityInfo(identity=ident, template_count=count, notes="Imported from initial gallery"))
+                    elif existing.template_count != count:
+                        existing.template_count = count
+                        existing.updated_at = datetime.now(timezone.utc).isoformat()
+                        self.repository.upsert_enrolled_identity(existing)
                 records = self.repository.list_enrolled_identities()
             return records
 

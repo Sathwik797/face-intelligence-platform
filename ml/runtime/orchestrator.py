@@ -128,9 +128,9 @@ class FaceIntelligenceRuntime:
                 similarity=-1.0,
                 threshold=getattr(self.recognition_pipeline, "threshold", 0.24),
                 recognized=False,
-                reason=f"pipeline_error: {str(e)}"
+                reason="pipeline_error"
             )
-            error_msg = f"Recognition error: {str(e)}"
+            error_msg = "Recognition processing failed."
         t1_rec = time.perf_counter()
         rec_latency_ms = (t1_rec - t0_rec) * 1000.0
 
@@ -153,7 +153,7 @@ class FaceIntelligenceRuntime:
                 active_candidate="Unknown",
                 is_stable=False
             )
-            error_msg = (error_msg + f" | Temporal error: {str(e)}") if error_msg else f"Temporal error: {str(e)}"
+            error_msg = (error_msg + " | Temporal processing failed.") if error_msg else "Temporal processing failed."
         t1_temp = time.perf_counter()
         temp_latency_ms = (t1_temp - t0_temp) * 1000.0
 
@@ -173,7 +173,7 @@ class FaceIntelligenceRuntime:
             active_sessions = self.presence_manager.get_active_sessions()
         except Exception as e:
             active_sessions = []
-            error_msg = (error_msg + f" | Presence error: {str(e)}") if error_msg else f"Presence error: {str(e)}"
+            error_msg = (error_msg + " | Presence processing failed.") if error_msg else "Presence processing failed."
         t1_pres = time.perf_counter()
         pres_latency_ms = (t1_pres - t0_pres) * 1000.0
 

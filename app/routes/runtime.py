@@ -7,6 +7,7 @@ import numpy as np
 from flask import Blueprint, request, jsonify, current_app
 
 from app.schemas.responses import serialize_frame_result, error_response
+from app.security import require_api_key
 
 runtime_bp = Blueprint("runtime", __name__, url_prefix="/api/v1/runtime")
 
@@ -26,6 +27,7 @@ def status():
 
 
 @runtime_bp.route("/start", methods=["POST"])
+@require_api_key
 def start():
     """Starts the FaceIntelligenceRuntime orchestrator."""
     service = getattr(current_app, "runtime_service", None)
@@ -38,6 +40,7 @@ def start():
 
 
 @runtime_bp.route("/stop", methods=["POST"])
+@require_api_key
 def stop():
     """Gracefully stops runtime and finalizes active sessions with shutdown reason."""
     service = getattr(current_app, "runtime_service", None)
@@ -56,6 +59,7 @@ def stop():
 
 
 @runtime_bp.route("/reset", methods=["POST"])
+@require_api_key
 def reset():
     """Resets temporal history, presence state machines, and frame counters."""
     service = getattr(current_app, "runtime_service", None)
@@ -107,10 +111,13 @@ def process_frame():
             err, code = error_response("empty_image", "Decoded image bytes are empty", 422)
             return jsonify(err), code
 
-        pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+        pil_image = Image.open(BytesIO(image_bytes))
+        if pil_image.width * pil_image.height > 20_000_000:
+            raise ValueError("Image dimensions exceed the 20 megapixel limit.")
+        pil_image = pil_image.convert("RGB")
         rgb_frame = np.array(pil_image)
-    except Exception as e:
-        err, code = error_response("unprocessable_image", f"Failed to decode base64 image: {str(e)}", 422)
+    except Exception:
+        err, code = error_response("unprocessable_image", "Image payload could not be decoded.", 422)
         return jsonify(err), code
 
     # 3. Optional timestamp parsing

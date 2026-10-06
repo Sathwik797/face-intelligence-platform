@@ -420,6 +420,10 @@ presence:
 
 ---
 
+## API Security
+
+Administrative state-changing endpoints require an `X-API-Key` header backed by the `FACE_INTELLIGENCE_API_KEY` environment variable. The secret is not stored in source control. Production debug mode is disabled by default and internal exception details are not returned through the API.
+
 ## Biometric Privacy & Security Notice
 
 - **On-Premise Processing**: All video frames, face crops, and biometric feature embeddings are computed locally within the execution environment. Zero biometric data is transmitted to external cloud endpoints.
