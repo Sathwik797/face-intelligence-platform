@@ -378,3 +378,78 @@ def test_attendance_service_uninitialized_returns_503():
         res = client.get("/api/v1/attendance/records")
         assert res.status_code == 503
         assert res.get_json()["error"] == "attendance_uninitialized"
+
+
+def test_multiple_sessions_accumulate_exact_dwell_time(attendance_service):
+    t0 = datetime(2026, 8, 17, 9, 0, tzinfo=timezone.utc)
+    t1 = datetime(2026, 8, 17, 10, 0, tzinfo=timezone.utc)
+    t2 = datetime(2026, 8, 17, 14, 0, tzinfo=timezone.utc)
+    t3 = datetime(2026, 8, 17, 15, 0, tzinfo=timezone.utc)
+
+    for session_id, start, end in [("s1", t0, t1), ("s2", t2, t3)]:
+        attendance_service._handle_presence_event(PresenceEvent(
+            event_type=PresenceEventType.ENTRY_CONFIRMED,
+            identity="Multi",
+            timestamp=start,
+            previous_state=PresenceState.CANDIDATE,
+            new_state=PresenceState.PRESENT,
+            session_id=session_id
+        ))
+        attendance_service._handle_presence_event(PresenceEvent(
+            event_type=PresenceEventType.SESSION_ENDED,
+            identity="Multi",
+            timestamp=end,
+            previous_state=PresenceState.GRACE,
+            new_state=PresenceState.ABSENT,
+            session_id=session_id
+        ))
+
+    record = attendance_service.repository.get_attendance_record("Multi", "2026-08-17")
+    assert record is not None
+    assert record.total_dwell_seconds == 7200.0
+    assert record.session_count == 2
+    assert len(attendance_service.repository.list_session_audits(identity="Multi", date_str="2026-08-17")) == 2
+
+
+def test_session_finalization_survives_service_restart(tmp_path):
+    db_file = str(tmp_path / "restart_safe.db")
+    repo1 = SQLiteAttendanceRepository(db_path=db_file)
+    service1 = AttendanceService(repo1)
+
+    start = datetime(2026, 8, 17, 9, 0, tzinfo=timezone.utc)
+    end = datetime(2026, 8, 17, 9, 10, tzinfo=timezone.utc)
+
+    service1._handle_presence_event(PresenceEvent(
+        event_type=PresenceEventType.ENTRY_CONFIRMED,
+        identity="RestartSafe",
+        timestamp=start,
+        previous_state=PresenceState.CANDIDATE,
+        new_state=PresenceState.PRESENT,
+        session_id="restart-session"
+    ))
+
+    # Simulate process restart: new repository and service, with no in-memory deduplication state.
+    repo2 = SQLiteAttendanceRepository(db_path=db_file)
+    service2 = AttendanceService(repo2)
+    service2._handle_presence_event(PresenceEvent(
+        event_type=PresenceEventType.SESSION_ENDED,
+        identity="RestartSafe",
+        timestamp=end,
+        previous_state=PresenceState.GRACE,
+        new_state=PresenceState.ABSENT,
+        session_id="restart-session"
+    ))
+    # Replay the same close event after restart; it must not add another contribution.
+    service2._handle_presence_event(PresenceEvent(
+        event_type=PresenceEventType.SESSION_ENDED,
+        identity="RestartSafe",
+        timestamp=end,
+        previous_state=PresenceState.GRACE,
+        new_state=PresenceState.ABSENT,
+        session_id="restart-session"
+    ))
+
+    record = repo2.get_attendance_record("RestartSafe", "2026-08-17")
+    assert record is not None
+    assert record.total_dwell_seconds == 600.0
+    assert len(repo2.list_session_audits(identity="RestartSafe", date_str="2026-08-17")) == 1
