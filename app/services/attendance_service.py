@@ -102,6 +102,7 @@ class AttendanceService:
             )
             if session_id:
                 self._processed_session_ids.add(session_id)
+                self.repository.record_active_session(session_id, identity, date_str, ts_iso)
             return self.repository.upsert_attendance_record(new_record)
         else:
             # Same-day repeated entry / new session
@@ -126,37 +127,46 @@ class AttendanceService:
     ) -> Optional[AttendanceRecord]:
         ts_iso = timestamp.isoformat()
 
-        # Deduplicate session closure
+        # The durable audit ledger is the restart-safe idempotency source.
+        effective_session_id = session_id or f"session_{ts_iso}"
         if session_id and session_id in self._finalized_session_ids:
             return existing
-        if session_id:
+        if session_id and any(a.session_id == session_id for a in self.repository.list_session_audits(identity=identity, date_str=date_str)):
             self._finalized_session_ids.add(session_id)
+            return existing
 
-        # Estimate duration if session_id is available
-        session_duration = 0.0
-        if existing is not None:
-            first_in_dt = datetime.fromisoformat(existing.first_check_in.replace("Z", "+00:00"))
-            session_duration = max(0.0, (timestamp - first_in_dt).total_seconds())
+        started_at = None
+        if session_id:
+            active = self.repository.get_active_session(session_id)
+            if active is not None:
+                _, active_date, active_started_at = active
+                if active_date == date_str:
+                    started_at = active_started_at
+        if started_at is None and existing is not None:
+            started_at = existing.first_check_in
+        if started_at is None:
+            started_at = ts_iso
 
-        # Audit entry
+        start_dt = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        session_duration = max(0.0, (timestamp - start_dt).total_seconds())
+
         audit = SessionAuditEntry(
-            session_id=session_id or f"session_{ts_iso}",
+            session_id=effective_session_id,
             identity=identity,
             date=date_str,
-            started_at=existing.first_check_in if existing else ts_iso,
+            started_at=started_at,
             ended_at=ts_iso,
             duration_seconds=session_duration,
             observation_count=1,
             interruption_count=0,
             closure_reason=reason or "session_ended"
         )
-        self.repository.record_session_audit(audit)
 
         if existing is None:
-            new_record = AttendanceRecord(
+            record = AttendanceRecord(
                 identity=identity,
                 date=date_str,
-                first_check_in=ts_iso,
+                first_check_in=started_at,
                 last_check_out=ts_iso,
                 total_dwell_seconds=session_duration,
                 session_count=1,
@@ -164,17 +174,22 @@ class AttendanceService:
                 created_at=ts_iso,
                 updated_at=ts_iso
             )
-            return self.repository.upsert_attendance_record(new_record)
         else:
             existing.last_check_out = ts_iso
-            existing.total_dwell_seconds = max(existing.total_dwell_seconds, session_duration)
+            existing.total_dwell_seconds += session_duration
+            if session_id:
+                existing.session_count += 1
             if existing.total_dwell_seconds >= self.config.min_present_seconds:
                 existing.status = AttendanceStatus.PRESENT
             else:
                 existing.status = AttendanceStatus.PARTIAL
             existing.updated_at = ts_iso
-            return self.repository.upsert_attendance_record(existing)
+            record = existing
 
+        finalized = self.repository.finalize_session(audit, record)
+        if session_id:
+            self._finalized_session_ids.add(session_id)
+        return finalized
     def record_manual_session(self, session: PresenceSession, closure_reason: str = "normal_exit") -> AttendanceRecord:
         """Processes a finalized PresenceSession directly into attendance records."""
         with self._lock:
