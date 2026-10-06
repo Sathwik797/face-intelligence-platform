@@ -87,6 +87,16 @@ class SQLiteAttendanceRepository(BaseAttendanceRepository):
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_identity ON session_audit_log(identity);")
 
                 cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS active_sessions (
+                        session_id TEXT PRIMARY KEY,
+                        identity TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        started_at TEXT NOT NULL
+                    );
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_active_session_identity ON active_sessions(identity);")
+
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS enrolled_identities (
                         identity TEXT PRIMARY KEY,
                         template_count INTEGER NOT NULL DEFAULT 1,
@@ -235,6 +245,93 @@ class SQLiteAttendanceRepository(BaseAttendanceRepository):
                 if self._conn is None:
                     conn.close()
 
+    def record_active_session(self, session_id: str, identity: str, date_str: str, started_at: str) -> None:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                conn.execute("""
+                    INSERT INTO active_sessions (session_id, identity, date, started_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(session_id) DO UPDATE SET
+                        identity = excluded.identity,
+                        date = excluded.date,
+                        started_at = excluded.started_at
+                """, (session_id, identity, date_str, started_at))
+                conn.commit()
+            finally:
+                if self._conn is None:
+                    conn.close()
+
+    def get_active_session(self, session_id: str) -> Optional[tuple]:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                row = conn.execute(
+                    "SELECT identity, date, started_at FROM active_sessions WHERE session_id = ?",
+                    (session_id,)
+                ).fetchone()
+                return tuple(row) if row is not None else None
+            finally:
+                if self._conn is None:
+                    conn.close()
+
+    def finalize_session(self, entry: SessionAuditEntry, record: AttendanceRecord) -> AttendanceRecord:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                conn.execute("BEGIN")
+                duplicate = conn.execute(
+                    "SELECT 1 FROM session_audit_log WHERE session_id = ?",
+                    (entry.session_id,)
+                ).fetchone()
+                if duplicate is not None:
+                    row = conn.execute(
+                        "SELECT * FROM attendance_records WHERE identity = ? AND date = ?",
+                        (entry.identity, entry.date)
+                    ).fetchone()
+                    conn.commit()
+                    return self._row_to_record(row) if row is not None else record
+
+                status_val = record.status.value if isinstance(record.status, AttendanceStatus) else str(record.status)
+                conn.execute("""
+                    INSERT INTO attendance_records (
+                        record_id, identity, date, first_check_in, last_check_out,
+                        total_dwell_seconds, session_count, status, last_confidence_score,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(identity, date) DO UPDATE SET
+                        first_check_in = excluded.first_check_in,
+                        last_check_out = excluded.last_check_out,
+                        total_dwell_seconds = excluded.total_dwell_seconds,
+                        session_count = excluded.session_count,
+                        status = excluded.status,
+                        last_confidence_score = excluded.last_confidence_score,
+                        updated_at = excluded.updated_at
+                """, (
+                    record.record_id, record.identity, record.date, record.first_check_in,
+                    record.last_check_out, float(record.total_dwell_seconds), int(record.session_count),
+                    status_val, float(record.last_confidence_score), record.created_at, record.updated_at
+                ))
+                conn.execute("""
+                    INSERT INTO session_audit_log (
+                        session_id, identity, date, started_at, ended_at,
+                        duration_seconds, observation_count, interruption_count, closure_reason
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    entry.session_id, entry.identity, entry.date, entry.started_at, entry.ended_at,
+                    float(entry.duration_seconds), int(entry.observation_count),
+                    int(entry.interruption_count), entry.closure_reason
+                ))
+                conn.execute("DELETE FROM active_sessions WHERE session_id = ?", (entry.session_id,))
+                conn.commit()
+                return record
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                if self._conn is None:
+                    conn.close()
+
     def get_daily_summary(self, date_str: str) -> AttendanceDailySummary:
         records = self.list_attendance_records(date_str=date_str)
         total_records = len(records)
@@ -340,6 +437,7 @@ class SQLiteAttendanceRepository(BaseAttendanceRepository):
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM attendance_records;")
                 cursor.execute("DELETE FROM session_audit_log;")
+                cursor.execute("DELETE FROM active_sessions;")
                 cursor.execute("DELETE FROM enrolled_identities;")
                 conn.commit()
             finally:
