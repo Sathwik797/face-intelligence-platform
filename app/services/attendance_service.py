@@ -177,8 +177,6 @@ class AttendanceService:
         else:
             existing.last_check_out = ts_iso
             existing.total_dwell_seconds += session_duration
-            if session_id:
-                existing.session_count += 1
             if existing.total_dwell_seconds >= self.config.min_present_seconds:
                 existing.status = AttendanceStatus.PRESENT
             else:
